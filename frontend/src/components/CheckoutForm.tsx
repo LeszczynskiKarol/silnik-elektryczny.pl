@@ -93,6 +93,7 @@ export function CheckoutForm() {
           notes,
           wantsInvoice,
           paymentMethod,
+          returnUrl: window.location.origin,
         }),
       );
     } catch {}
