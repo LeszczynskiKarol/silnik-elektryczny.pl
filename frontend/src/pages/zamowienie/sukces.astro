@@ -1,0 +1,42 @@
+---
+// SSR nie — to jest client-side page
+---
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zamówienie złożone – silnik-elektryczny.pl</title>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-lg w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center" id="content">
+    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-green-600">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <h1 class="text-2xl font-bold mb-2">Dziękujemy za zamówienie!</h1>
+    <p class="text-gray-500 mb-2" id="order-number"></p>
+    <p class="text-sm text-gray-400 mb-8">Potwierdzenie zostało wysłane na Twój email.</p>
+    <a href="/" class="inline-block bg-blue-700 text-white px-8 py-3 rounded-xl font-semibold hover:bg-blue-800 transition">
+      ← Wróć do sklepu
+    </a>
+  </div>
+
+  <script>
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id');
+      if (!sessionId) return;
+      
+      try {
+        const res = await fetch(`https://api.silniki-elektryczne.com.pl/api/orders/by-stripe-session/${sessionId}`);
+        const data = await res.json();
+        if (data.success && data.data?.orderNumber) {
+          document.getElementById('order-number').textContent = `Numer zamówienia: #${data.data.orderNumber}`;
+        }
+      } catch(e) {}
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,411 @@
+---
+import { getAllMotorSlugs, getMotor, formatPrice, getImageUrl, LAMBDA, fetchAllMotorsRaw } from '../../lib/api.ts';
+import Layout from '../../layouts/Layout.astro';
+import AddToCart from '../../components/AddToCart';
+
+export async function getStaticPaths() {
+  const slugs = await getAllMotorSlugs();
+  return slugs.map(slug => ({ params: { slug } }));
+}
+
+const { slug } = Astro.params;
+const data = await getMotor(slug);
+if (!data?.success) return Astro.redirect('/404');
+
+const p = data.data.product;
+const productName = p.name ? p.name.charAt(0).toUpperCase() + p.name.slice(1) : '';
+const price = Number(p.marketplaces?.ownStore?.price ?? p.price);
+const imgs = [p.mainImage, ...(p.galleryImages || [])].filter(Boolean);
+const productWeight = Number(p.weight) || 0;
+
+// ── Kategoria główna (do breadcrumba i internal linking) ──
+const CAT_META: Record<string, { label: string; shopUrl: string }> = {
+  'trojfazowe':              { label: 'Trójfazowe',              shopUrl: 'https://www.silniki-elektryczne.com.pl/trojfazowe' },
+  'jednofazowe':             { label: 'Jednofazowe',             shopUrl: 'https://www.silniki-elektryczne.com.pl/jednofazowe' },
+  'z-hamulcem':              { label: 'Z hamulcem',              shopUrl: 'https://www.silniki-elektryczne.com.pl/z-hamulcem' },
+  'pierscieniowe':           { label: 'Pierścieniowe',           shopUrl: '' },
+  'dwubiegowe':              { label: 'Dwubiegowe',              shopUrl: 'https://www.silniki-elektryczne.com.pl/dwubiegowe' },
+  'pompy':                   { label: 'Pompy',                   shopUrl: 'https://www.silniki-elektryczne.com.pl/pompy' },
+  'wentylatory-przemyslowe': { label: 'Wentylatory przemysłowe', shopUrl: 'https://www.silniki-elektryczne.com.pl/wentylatory-przemyslowe' },
+};
+const productCatSlugs: string[] = (p.categories || []).map((c: any) => c.category?.slug || c.slug || '').filter(Boolean);
+const primaryCatSlug = productCatSlugs.find(s => CAT_META[s]) || '';
+const primaryCatLabel = primaryCatSlug ? CAT_META[primaryCatSlug]?.label || primaryCatSlug : '';
+const primaryCatShopUrl = primaryCatSlug ? CAT_META[primaryCatSlug]?.shopUrl || '' : '';
+
+// ── Moc — link do strony mocy ──
+const productPower = typeof p.power?.value === 'number' ? p.power.value : null;
+const powerSlug = productPower ? productPower.toString().replace('.', '-') + 'kw' : '';
+const powerLabel = productPower ? productPower.toString().replace('.', ',') : '';
+
+// ── Podobne produkty ──
+const allProducts = await fetchAllMotorsRaw();
+
+let similar: any[] = [];
+if (productCatSlugs.length > 0) {
+  similar = allProducts.filter((x: any) => {
+    if (x.marketplaces?.ownStore?.slug === slug) return false;
+    return (x.categories || []).some((c: any) =>
+      productCatSlugs.includes(c.category?.slug || c.slug || '')
+    );
+  });
+}
+if (similar.length < 4 && productPower) {
+  const byPower = allProducts.filter((x: any) => {
+    if (x.marketplaces?.ownStore?.slug === slug) return false;
+    if (similar.some((s: any) => s.marketplaces?.ownStore?.slug === x.marketplaces?.ownStore?.slug)) return false;
+    const pw = x.power?.value;
+    return pw != null && Math.abs(Number(pw) - Number(productPower)) <= Number(productPower) * 0.5;
+  });
+  similar = [...similar, ...byPower];
+}
+similar = similar.sort(() => Math.random() - 0.5).slice(0, 8);
+
+const specs = [
+  p.power?.value     && { label: 'Moc',          value: `${p.power.value} kW` },
+  p.rpm?.value       && { label: 'Prędkość',      value: `${p.rpm.value} obr/min` },
+  p.mechanicalSize   && { label: 'Wielkość',      value: `${p.mechanicalSize}` },
+  p.weight           && { label: 'Masa',          value: `${p.weight} kg` },
+  p.shaftDiameter    && { label: 'Ø wału',        value: `${p.shaftDiameter} mm` },
+  p.legSpacing       && { label: 'Rozstaw łap',   value: `${p.legSpacing} mm` },
+  p.startType        && { label: 'Rozruch',       value: p.startType },
+  p.manufacturer     && { label: 'Producent',     value: p.manufacturer },
+].filter(Boolean);
+
+// ── Schema.org JSON-LD ──
+const canonical = `https://www.silnik-elektryczny.pl/silnik/${slug}`;
+
+const schemaProduct: Record<string, any> = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": productName,
+  "image": imgs.length > 0 ? imgs : undefined,
+  "url": canonical,
+  "sku": slug,
+  "category": primaryCatLabel || "Silniki elektryczne",
+  "offers": {
+    "@type": "Offer",
+    "price": price,
+    "priceCurrency": "PLN",
+    "availability": p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    "url": canonical,
+    "seller": {
+      "@type": "Organization",
+      "name": "Stojan Silniki Elektryczne",
+      "url": "https://www.silniki-elektryczne.com.pl"
+    }
+  }
+};
+if (p.manufacturer) {
+  schemaProduct.brand = { "@type": "Brand", "name": p.manufacturer };
+}
+if (p.description) {
+  // Strip HTML tags for schema description
+  schemaProduct.description = p.description.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+if (p.weight) {
+  schemaProduct.weight = { "@type": "QuantitativeValue", "value": p.weight, "unitCode": "KGM" };
+}
+
+const breadcrumbItems: any[] = [
+  { "@type": "ListItem", "position": 1, "name": "Strona główna", "item": "https://www.silnik-elektryczny.pl/" }
+];
+if (primaryCatSlug) {
+  breadcrumbItems.push({
+    "@type": "ListItem", "position": 2,
+    "name": primaryCatLabel,
+    "item": `https://www.silnik-elektryczny.pl/kategoria/${primaryCatSlug}`
+  });
+}
+if (productPower && powerSlug) {
+  breadcrumbItems.push({
+    "@type": "ListItem", "position": breadcrumbItems.length + 1,
+    "name": `${powerLabel} kW`,
+    "item": `https://www.silnik-elektryczny.pl/moc/${powerSlug}`
+  });
+}
+breadcrumbItems.push({
+  "@type": "ListItem", "position": breadcrumbItems.length + 1,
+  "name": productName
+});
+
+const schemaBreadcrumb = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": breadcrumbItems
+};
+---
+
+<Layout
+  title={`Używany ${p.name} – silnik-elektryczny.pl`}
+  description={`Używany ${p.name} – ${p.power?.value} kW, ${p.rpm?.value} obr/min. Cena: ${price} PLN brutto.`}
+  canonical={canonical}
+>
+
+  <!-- Schema.org Product + BreadcrumbList -->
+  <script type="application/ld+json" set:html={JSON.stringify(schemaProduct)} slot="head" />
+  <script type="application/ld+json" set:html={JSON.stringify(schemaBreadcrumb)} slot="head" />
+
+  <style is:global slot="head">
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --navy:#1a2744; --navy-light:#243562; --electric:#2563eb; --surface:#f8f8f6; --border:#e8e8e4; --text:#1a1a1a; --muted:#8a8a8a; }
+    .breadcrumb { max-width:1280px; margin:0 auto; padding:16px 24px; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+    .breadcrumb a { color:var(--muted); text-decoration:none; }
+    .breadcrumb a:hover { color:var(--electric); }
+    .breadcrumb-sep { color:var(--border); }
+    .product-grid { max-width:1280px; margin:0 auto; padding:0 24px 80px; display:grid; grid-template-columns:1fr 440px; gap:40px; align-items:start; }
+    @media(max-width:900px){ .product-grid { grid-template-columns:1fr; } }
+    .gallery { position:sticky; top:76px; }
+    @media(max-width:900px){ .gallery { position:static !important; } }
+    .gallery-main { aspect-ratio:1; background:white; border-radius:20px; border:1px solid var(--border); overflow:hidden; display:flex; align-items:center; justify-content:center; padding:32px; }
+    .gallery-main img { max-width:100%; max-height:100%; object-fit:contain; transition:transform 0.4s ease; }
+    .gallery-main:hover img { transform:scale(1.04); }
+    .gallery-thumbs { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+    .gallery-thumb { width:72px; height:72px; border-radius:10px; overflow:hidden; border:2px solid transparent; background:white; cursor:pointer; transition:all 0.15s; padding:4px; }
+    .gallery-thumb.active { border-color:var(--electric); }
+    .gallery-thumb:hover { border-color:#93c5fd; }
+    .gallery-thumb img { width:100%; height:100%; object-fit:contain; }
+    .product-info { padding-top:4px; animation:fadeUp 0.4s ease both; }
+    .gallery { animation:fadeUp 0.4s ease 0.1s both; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .product-badge { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600; background:#dcfce7; color:#16a34a; margin-bottom:16px; letter-spacing:0.3px; text-transform:uppercase; }
+    .product-badge.out { background:#fee2e2; color:#dc2626; }
+    .product-manufacturer { font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+    .product-title { font-size:24px; font-weight:700; line-height:1.25; color:var(--text); margin-bottom:24px; letter-spacing:-0.4px; }
+    @media(max-width:600px){ .product-title { font-size:20px; } }
+    .specs-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:28px; }
+    .spec-card { background:white; border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+    .spec-label { font-size:10px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+    .spec-value { font-family:'DM Mono',monospace; font-size:14px; font-weight:500; color:var(--text); }
+    .price-block { background:white; border:1px solid var(--border); border-radius:20px; padding:24px; margin-bottom:24px; }
+    .price-tag { font-size:38px; font-weight:800; color:var(--navy); letter-spacing:-1px; line-height:1; }
+    .price-vat { font-size:12px; color:var(--muted); margin-top:4px; }
+    .price-divider { height:1px; background:var(--border); margin:18px 0; }
+    .price-meta { display:flex; flex-direction:column; gap:10px; margin-bottom:20px; }
+    .price-meta-row { display:flex; align-items:flex-start; gap:8px; font-size:12px; color:var(--muted); line-height:1.5; }
+    .price-meta-row svg { flex-shrink:0; margin-top:1px; }
+    .price-meta-row strong { color:var(--navy); }
+    .trust-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
+    .trust-item { text-align:center; padding:10px 6px; background:var(--surface); border-radius:10px; border:1px solid var(--border); }
+    .trust-icon { font-size:18px; display:block; margin-bottom:3px; }
+    .trust-label { font-size:10px; color:var(--muted); font-weight:500; }
+    .description-section { margin-top:48px; }
+    .section-title { font-size:16px; font-weight:700; color:var(--text); margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid var(--border); }
+    .description-content { font-size:14px; line-height:1.85; color:#444; }
+    .description-content h2, .description-content h3 { font-size:15px; font-weight:700; color:var(--text); margin:20px 0 10px; }
+    .description-content p { margin-bottom:14px; }
+    .description-content ul, .description-content ol { margin:8px 0 14px 22px; }
+    .description-content li { margin-bottom:6px; }
+    #desc-inner { overflow:hidden; position:relative; }
+    #desc-inner.collapsed { max-height:220px; }
+    #desc-fade { display:none; position:relative; margin-top:-60px; height:60px; background:linear-gradient(to bottom, transparent, var(--surface)); pointer-events:none; }
+    #desc-inner.collapsed + #desc-fade { display:block; }
+    #desc-toggle { display:none; margin-top:14px; background:none; border:1.5px solid var(--border); border-radius:8px; padding:8px 22px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Sora',sans-serif; color:var(--navy); transition:all 0.15s; }
+    #desc-toggle:hover { border-color:var(--navy); background:#f0f2f8; }
+
+    .product-links { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:20px; }
+    .product-link { display:inline-flex; align-items:center; gap:4px; padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600; text-decoration:none; background:#eef2ff; color:var(--navy); transition:all 0.15s; }
+    .product-link:hover { background:#dde4ff; }
+
+    .similar-section { max-width:1280px; margin:0 auto; padding:0 24px 80px; }
+    .similar-title { font-size:18px; font-weight:800; color:var(--text); letter-spacing:-0.3px; margin-bottom:18px; padding-bottom:12px; border-bottom:2px solid var(--border); }
+    .similar-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
+    .sim-card { background:white; border-radius:14px; border:1px solid var(--border); overflow:hidden; text-decoration:none; color:inherit; display:flex; flex-direction:column; transition:box-shadow 0.18s,transform 0.18s; }
+    .sim-card:hover { box-shadow:0 8px 28px rgba(0,0,0,0.1); transform:translateY(-2px); }
+    .sim-img { aspect-ratio:1; background:#f7f7f5; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:12px; }
+    .sim-img img { max-width:100%; max-height:100%; object-fit:contain; transition:transform 0.3s; }
+    .sim-card:hover .sim-img img { transform:scale(1.06); }
+    .sim-body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:3px; flex:1; }
+    .sim-mfr { font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--muted); }
+    .sim-name { font-size:11px; font-weight:600; line-height:1.4; color:var(--text); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; flex:1; }
+    .sim-specs { font-size:10px; color:var(--muted); font-family:'DM Mono',monospace; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .sim-bottom { display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding-top:7px; border-top:1px solid #f0f0ee; }
+    .sim-price { font-size:15px; font-weight:800; color:var(--navy); font-family:'DM Mono',monospace; }
+    .sim-badge { font-size:9px; font-weight:600; padding:2px 7px; border-radius:20px; background:#dcfce7; color:#16a34a; }
+  </style>
+
+  <!-- Breadcrumb z linkami do kategorii i mocy -->
+  <nav class="breadcrumb">
+    <a href="/">Strona główna</a>
+    <span class="breadcrumb-sep">/</span>
+    {primaryCatSlug ? (
+      <>
+        <a href={`/kategoria/${primaryCatSlug}`}>{primaryCatLabel}</a>
+        <span class="breadcrumb-sep">/</span>
+      </>
+    ) : (
+      <>
+        <a href="/">Silniki elektryczne</a>
+        <span class="breadcrumb-sep">/</span>
+      </>
+    )}
+    {productPower && powerSlug && (
+      <>
+        <a href={`/moc/${powerSlug}`}>{powerLabel} kW</a>
+        <span class="breadcrumb-sep">/</span>
+      </>
+    )}
+    <span>{productName}</span>
+  </nav>
+
+  <div class="product-grid">
+    <div class="gallery" id="gallery">
+      <div class="gallery-main">
+        <img id="main-img" src={imgs[0] || getImageUrl(p)} alt={productName} />
+      </div>
+      {imgs.length > 1 && (
+        <div class="gallery-thumbs">
+          {imgs.map((img, i) => (
+            <div class={`gallery-thumb ${i === 0 ? 'active' : ''}`} data-src={img} data-idx={i}>
+              <img src={img} alt="" loading="lazy" />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <div class="product-info">
+      <div class={`product-badge ${p.stock < 1 ? 'out' : ''}`}>
+        {p.stock > 0 ? (
+          <><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>Dostępny — {p.stock} szt.</>
+        ) : 'Brak w magazynie'}
+      </div>
+      {p.manufacturer && <p class="product-manufacturer">{p.manufacturer}</p>}
+      <h1 class="product-title">{productName}</h1>
+
+      <!-- Linki wewnętrzne do kategorii i mocy -->
+      <div class="product-links">
+        {primaryCatSlug && (
+          <a href={`/kategoria/${primaryCatSlug}`} class="product-link">{primaryCatLabel}</a>
+        )}
+        {productPower && powerSlug && (
+          <a href={`/moc/${powerSlug}`} class="product-link">{powerLabel} kW</a>
+        )}
+      </div>
+
+      {specs.length > 0 && (
+        <div class="specs-grid">
+          {specs.map((s: any) => (
+            <div class="spec-card">
+              <div class="spec-label">{s.label}</div>
+              <div class="spec-value">{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div class="price-block">
+        <div class="price-tag">{price.toLocaleString('pl-PL')} <span style="font-size:22px;font-weight:500;">zł</span></div>
+        <div class="price-vat">cena brutto z VAT 23%</div>
+        <div class="price-divider" />
+        <div class="price-meta">
+          <div class="price-meta-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <span>Koszt wysyłki od&nbsp;<strong id="shipping-cost">...</strong></span>
+          </div>
+          <div class="price-meta-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Wysyłka 2–4 dni robocze</span>
+          </div>
+          <div class="price-meta-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Zweryfikowany stan techniczny</span>
+          </div>
+        </div>
+        {p.stock > 0 && <AddToCart client:load product={p} slug={slug} />}
+        {p.stock < 1 && <p style="text-align:center;color:#dc2626;font-size:14px;font-weight:600;padding:12px 0;">Produkt chwilowo niedostępny</p>}
+      </div>
+    </div>
+  </div>
+
+  {p.description && (
+    <div style="max-width:1280px;margin:0 auto;padding:0 24px 48px;">
+      <div style="max-width:760px;">
+        <div class="description-section">
+          <h2 class="section-title">Opis produktu</h2>
+          <div id="desc-inner" class="collapsed">
+            <div class="description-content" set:html={p.description} />
+          </div>
+          <div id="desc-fade"></div>
+          <button id="desc-toggle">Pokaż więcej</button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {similar.length > 0 && (
+    <div class="similar-section">
+      <h2 class="similar-title">Podobne produkty</h2>
+      <div class="similar-grid">
+        {similar.map((x: any) => {
+          const xSlug = x.marketplaces?.ownStore?.slug;
+          const xImg = x.mainImage || x.images?.[0] || '/placeholder.webp';
+          const xPrice = Number(x.marketplaces?.ownStore?.price ?? x.price);
+          const xName = x.name ? x.name.charAt(0).toUpperCase() + x.name.slice(1) : x.name;
+          const xPw = x.power?.value;
+          const xSpecs = [xPw && `${xPw} kW`, x.rpm?.value && `${x.rpm.value} obr/min`, x.weight && `${x.weight} kg`].filter(Boolean).join(' · ');
+          return (
+            <a href={`/silnik/${xSlug}`} class="sim-card">
+              <div class="sim-img"><img src={xImg} alt={xName} loading="lazy" /></div>
+              <div class="sim-body">
+                {x.manufacturer && <div class="sim-mfr">{x.manufacturer}</div>}
+                <div class="sim-name">{xName}</div>
+                {xSpecs && <div class="sim-specs">{xSpecs}</div>}
+                <div class="sim-bottom">
+                  <span class="sim-price">{xPrice.toLocaleString('pl-PL')} zł</span>
+                  <span class="sim-badge">dostępny</span>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  )}
+
+  <script define:vars={{ productWeight }}>
+    const mainImg = document.getElementById('main-img');
+    document.querySelectorAll('.gallery-thumb').forEach(thumb => {
+      thumb.addEventListener('click', () => {
+        const src = thumb.dataset.src;
+        if (src && mainImg) mainImg.src = src;
+        document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
+        thumb.classList.add('active');
+      });
+    });
+
+    if (productWeight > 0) {
+      fetch('https://api.silniki-elektryczne.com.pl/api/orders/calculate-shipping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items:[{productId:'x',quantity:1}], paymentMethod:'prepaid', totalWeight:productWeight }),
+      })
+      .then(r => r.json())
+      .then(d => {
+        const el = document.getElementById('shipping-cost');
+        if (el) el.textContent = d.data?.cost ? d.data.cost.toLocaleString('pl-PL') + ' zł' : '–';
+      })
+      .catch(() => { const el = document.getElementById('shipping-cost'); if (el) el.textContent = '–'; });
+    } else {
+      const el = document.getElementById('shipping-cost');
+      if (el) el.textContent = '–';
+    }
+
+    const descInner = document.getElementById('desc-inner');
+    const descToggle = document.getElementById('desc-toggle');
+    if (descInner && descToggle) {
+      if (descInner.scrollHeight > 260) {
+        descToggle.style.display = 'inline-block';
+        let expanded = false;
+        descToggle.addEventListener('click', () => {
+          expanded = !expanded;
+          descInner.classList.toggle('collapsed', !expanded);
+          descToggle.textContent = expanded ? 'Ukryj' : 'Pokaż więcej';
+        });
+      } else {
+        descInner.classList.remove('collapsed');
+      }
+    }
+  </script>
+
+</Layout>

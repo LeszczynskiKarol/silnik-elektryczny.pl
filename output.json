@@ -1,0 +1,1 @@
+{"statusCode":403,"headers":{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, X-Webhook-Secret","Content-Type":"application/json"},"body":"{\"success\":false,\"error\":\"Invalid secret\"}"}

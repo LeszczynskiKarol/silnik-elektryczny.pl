@@ -1,0 +1,7 @@
+roUser-agent: *
+Allow: /
+
+Disallow: /checkout
+Disallow: /zamowienie/
+
+Sitemap: https://www.silnik-elektryczny.pl/sitemap-index.xml

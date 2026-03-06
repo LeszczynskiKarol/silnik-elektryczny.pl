@@ -1,0 +1,208 @@
+---
+//frontend/src/layouts/Layout.astro
+import CartDropdown from '../components/CartDropdown';
+import CookieConsent from '../components/CookieConsent.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  noindex?: boolean;
+}
+
+const { title = 'silnik-elektryczny.pl', description, canonical, noindex } = Astro.props;
+
+const NAV_CATS = [
+  { href: '/kategoria/trojfazowe',    label: 'Trójfazowe' },
+  { href: '/kategoria/jednofazowe',   label: 'Jednofazowe' },
+  { href: '/kategoria/z-hamulcem',    label: 'Z hamulcem' },
+  { href: '/kategoria/dwubiegowe',    label: 'Dwubiegowe' },
+];
+
+const FOOTER_POWERS = [
+  { kw: '3', slug: '3kw' }, { kw: '4', slug: '4kw' }, { kw: '5,5', slug: '5-5kw' },
+  { kw: '7,5', slug: '7-5kw' }, { kw: '11', slug: '11kw' }, { kw: '15', slug: '15kw' },
+  { kw: '18,5', slug: '18-5kw' }, { kw: '22', slug: '22kw' }, { kw: '30', slug: '30kw' },
+  { kw: '37', slug: '37kw' }, { kw: '45', slug: '45kw' }, { kw: '75', slug: '75kw' },
+  { kw: '90', slug: '90kw' }, { kw: '110', slug: '110kw' }, { kw: '160', slug: '160kw' },
+  { kw: '200', slug: '200kw' },
+];
+---
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title}</title>
+  {description && <meta name="description" content={description} />}
+  {canonical && <link rel="canonical" href={canonical} />}
+  {noindex && <meta name="robots" content="noindex" />}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --navy:#1a2744; --navy2:#243562; --blue:#2563eb; --surface:#f8f8f6; --border:#e8e8e4; --text:#1a1a1a; --muted:#8a8a8a; }
+    html { font-family: 'Sora', sans-serif; background: var(--surface); color: var(--text); }
+    body { min-height: 100vh; }
+
+    /* ── HEADER ── */
+    .site-header { position:sticky; top:0; z-index:100; background:var(--navy); }
+    .site-header-top {
+      max-width:1280px; margin:0 auto; padding:0 24px;
+      height:60px; display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid rgba(255,255,255,0.07);
+    }
+
+    /* LOGO */
+    .site-logo { display:flex; align-items:center; gap:12px; text-decoration:none; flex-shrink:0; }
+    .logo-icon { width:36px; height:36px; flex-shrink:0; }
+    .logo-text { display:flex; flex-direction:column; gap:1px; }
+    .logo-name { font-size:15px; font-weight:800; color:white; letter-spacing:-0.4px; line-height:1; }
+    .logo-name span { color:#60a5fa; }
+    .logo-claim { font-size:9px; font-weight:500; color:rgba(255,255,255,0.45); letter-spacing:0.6px; text-transform:uppercase; line-height:1; }
+
+    /* NAV */
+    .site-header-right { display:flex; align-items:center; gap:4px; }
+    .site-nav-link {
+      font-size:13px; color:rgba(255,255,255,0.6); text-decoration:none;
+      padding:6px 11px; border-radius:8px; transition:all 0.15s; white-space:nowrap;
+    }
+    .site-nav-link:hover { color:white; background:rgba(255,255,255,0.08); }
+
+    /* CATEGORY BAR */
+    .site-nav-bar {
+      background:rgba(0,0,0,0.15);
+      border-top:1px solid rgba(255,255,255,0.05);
+    }
+    .site-nav-bar-inner {
+      max-width:1280px; margin:0 auto; padding:0 24px;
+      display:flex; align-items:center; gap:2px; height:38px; overflow-x:auto;
+      scrollbar-width:none;
+    }
+    .site-nav-bar-inner::-webkit-scrollbar { display:none; }
+    .nav-cat {
+      font-size:12px; font-weight:600; color:rgba(255,255,255,0.55);
+      text-decoration:none; padding:5px 12px; border-radius:6px;
+      white-space:nowrap; transition:all 0.15s; flex-shrink:0;
+    }
+    .nav-cat:hover { color:white; background:rgba(255,255,255,0.1); }
+
+    /* ── FOOTER ── */
+    .site-footer { background:var(--navy); color:rgba(255,255,255,0.5); margin-top:80px; }
+    .footer-top { max-width:1280px; margin:0 auto; padding:48px 24px 36px; display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:40px; }
+    @media(max-width:900px){ .footer-top { grid-template-columns:1fr 1fr; gap:28px; } }
+    @media(max-width:560px){ .footer-top { grid-template-columns:1fr; } }
+
+    .footer-brand {}
+    .footer-logo-name { font-size:16px; font-weight:800; color:white; letter-spacing:-0.4px; margin-bottom:4px; }
+    .footer-logo-name span { color:#60a5fa; }
+    .footer-claim { font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:16px; }
+    .footer-desc { font-size:12px; line-height:1.7; color:rgba(255,255,255,0.4); max-width:280px; }
+
+    .footer-col-title { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:rgba(255,255,255,0.35); margin-bottom:14px; }
+    .footer-links { display:flex; flex-direction:column; gap:8px; }
+    .footer-link { font-size:12px; color:rgba(255,255,255,0.5); text-decoration:none; transition:color 0.15s; }
+    .footer-link:hover { color:white; }
+
+    .footer-powers { display:flex; flex-wrap:wrap; gap:6px; }
+    .footer-pow { font-size:11px; font-weight:600; color:rgba(255,255,255,0.45); text-decoration:none; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; transition:all 0.15s; font-family:'DM Mono',monospace; }
+    .footer-pow:hover { color:white; border-color:rgba(255,255,255,0.3); background:rgba(255,255,255,0.06); }
+
+    .footer-bottom { border-top:1px solid rgba(255,255,255,0.07); padding:16px 24px; max-width:1280px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+    .footer-copy { font-size:11px; color:rgba(255,255,255,0.3); }
+    .footer-copy a { color:rgba(255,255,255,0.4); text-decoration:none; }
+    .footer-copy a:hover { color:white; }
+  </style>
+  <slot name="head" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a href="/" class="site-logo">
+        <svg class="logo-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="36" height="36" rx="8" fill="#2563eb"/>
+          <rect x="8" y="12" width="16" height="12" rx="2" fill="white" fill-opacity="0.15" stroke="white" stroke-opacity="0.6" stroke-width="1.2"/>
+          <line x1="24" y1="18" x2="30" y2="18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="11" y1="12" x2="11" y2="10" stroke="white" stroke-opacity="0.5" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="14" y1="12" x2="14" y2="10" stroke="white" stroke-opacity="0.5" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="17" y1="12" x2="17" y2="10" stroke="white" stroke-opacity="0.5" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="20" y1="12" x2="20" y2="10" stroke="white" stroke-opacity="0.5" stroke-width="1.2" stroke-linecap="round"/>
+          <rect x="10" y="24" width="8" height="4" rx="1" fill="white" fill-opacity="0.2" stroke="white" stroke-opacity="0.4" stroke-width="1"/>
+          <circle cx="16" cy="18" r="3.5" stroke="white" stroke-width="1.5" fill="none"/>
+          <circle cx="16" cy="18" r="1" fill="white" fill-opacity="0.7"/>
+          <rect x="5" y="15" width="3" height="6" rx="1.5" fill="white" fill-opacity="0.25"/>
+        </svg>
+        <div class="logo-text">
+          <span class="logo-name">silnik<span>-elektryczny</span>.pl</span>
+          <span class="logo-claim">Używane silniki elektryczne</span>
+        </div>
+      </a>
+      <nav class="site-nav-bar">
+        <div class="site-nav-bar-inner">
+          {NAV_CATS.map(c => (
+            <a href={c.href} class="nav-cat">{c.label}</a>
+          ))}
+          <a href="/kategoria/pompy" class="nav-cat">Pompy</a>
+          <a href="/kategoria/wentylatory-przemyslowe" class="nav-cat">Wentylatory</a>
+        </div>
+      </nav>
+      <div class="site-header-right">
+        <CartDropdown client:load />
+      </div>
+    </div>
+  </header>
+
+  <slot />
+
+  <footer class="site-footer">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="footer-logo-name">silnik<span>-elektryczny</span>.pl</div>
+        <div class="footer-claim">Używane silniki elektryczne</div>
+        <p class="footer-desc">Sklep internetowy z używanymi silnikami elektrycznymi trójfazowymi i jednofazowymi. Wysyłka kurierem w 2–4 dni robocze.</p>
+      </div>
+
+      <div>
+        <div class="footer-col-title">Popularne moce</div>
+        <div class="footer-powers">
+          {FOOTER_POWERS.map(pw => (
+            <a href={`/moc/${pw.slug}`} class="footer-pow">{pw.kw} kW</a>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div class="footer-col-title">Informacje prawne</div>
+        <div class="footer-links">
+          <a href="/kontakt" class="footer-link">Kontakt</a>
+          <a href="/regulamin" class="footer-link">Regulamin sklepu</a>
+          <a href="/polityka-prywatnosci" class="footer-link">Polityka prywatności</a>
+          <a href="/przetwarzanie-danych" class="footer-link">Przetwarzanie danych</a>
+          <a href="/warunki-zwrotu" class="footer-link">Warunki zwrotu</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="footer-col-title">Realizacja zamówienia</div>
+        <div class="footer-links">
+          <a href="/formy-platnosci" class="footer-link">Formy płatności</a>
+          <a href="/koszty-wysylki" class="footer-link">Koszty i czas wysyłki</a>
+          <a href="/odstapienie-od-umowy" class="footer-link">Odstąpienie od umowy</a>
+        </div>
+        <div class="footer-col-title" style="margin-top:20px;">Pozostałe</div>
+        <div class="footer-links">
+          <a href="#" id="cookie-settings" class="footer-link">Ustawienia plików cookie</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span class="footer-copy">© {new Date().getFullYear()} silnik-elektryczny.pl</span>
+    </div>
+  </footer>
+
+  <!-- Cookie Consent — ładowany po footer, przed zamknięciem body -->
+  <CookieConsent />
+</body>
+</html>

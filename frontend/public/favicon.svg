@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#2563eb"/>
+  <!-- Motor body -->
+  <rect x="108" y="164" width="232" height="176" rx="28" fill="white" fill-opacity="0.15" stroke="white" stroke-opacity="0.7" stroke-width="16"/>
+  <!-- Shaft -->
+  <line x1="340" y1="252" x2="428" y2="252" stroke="white" stroke-width="36" stroke-linecap="round"/>
+  <!-- Shaft end cap -->
+  <circle cx="428" cy="252" r="22" fill="white" fill-opacity="0.3" stroke="white" stroke-opacity="0.6" stroke-width="8"/>
+  <!-- Cooling fins -->
+  <line x1="148" y1="164" x2="148" y2="128" stroke="white" stroke-opacity="0.6" stroke-width="16" stroke-linecap="round"/>
+  <line x1="192" y1="164" x2="192" y2="128" stroke="white" stroke-opacity="0.6" stroke-width="16" stroke-linecap="round"/>
+  <line x1="236" y1="164" x2="236" y2="128" stroke="white" stroke-opacity="0.6" stroke-width="16" stroke-linecap="round"/>
+  <line x1="280" y1="164" x2="280" y2="128" stroke="white" stroke-opacity="0.6" stroke-width="16" stroke-linecap="round"/>
+  <!-- Terminal box -->
+  <rect x="140" y="340" width="116" height="56" rx="14" fill="white" fill-opacity="0.2" stroke="white" stroke-opacity="0.5" stroke-width="12"/>
+  <!-- Terminal dots -->
+  <circle cx="176" cy="368" r="8" fill="white" fill-opacity="0.4"/>
+  <circle cx="220" cy="368" r="8" fill="white" fill-opacity="0.4"/>
+  <!-- Rotor circle -->
+  <circle cx="224" cy="252" r="52" stroke="white" stroke-width="20" fill="none"/>
+  <circle cx="224" cy="252" r="16" fill="white" fill-opacity="0.8"/>
+  <!-- Mounting bolt left -->
+  <rect x="64" y="208" width="44" height="88" rx="22" fill="white" fill-opacity="0.3"/>
+</svg>

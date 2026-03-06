@@ -1,0 +1,440 @@
+---
+/**
+ * CookieConsent.astro
+ * 
+ * Kompleksowe rozwiązanie cookie consent zgodne z:
+ * - RODO/GDPR (Rozporządzenie UE 2016/679)
+ * - Dyrektywa ePrivacy (2002/58/WE)
+ * - Google Consent Mode v2
+ * - Wytyczne UODO (polski organ nadzorczy)
+ * 
+ * Kategorie zgód:
+ * - necessary: zawsze aktywne (sesja, koszyk, consent)
+ * - analytics: Google Analytics 4 (analytics_storage)
+ * - marketing: remarketing, personalizacja reklam (ad_storage, ad_user_data, ad_personalization)
+ */
+---
+
+<style>
+  /* ── COOKIE BANNER ── */
+  .cc-overlay {
+    position: fixed; inset: 0; z-index: 10000;
+    background: rgba(0,0,0,0.45); backdrop-filter: blur(3px);
+    display: none; align-items: flex-end; justify-content: center;
+    padding: 16px;
+    opacity: 0; transition: opacity 0.25s ease;
+  }
+  .cc-overlay.visible { display: flex; }
+  .cc-overlay.shown { opacity: 1; }
+
+  .cc-banner {
+    background: white; border-radius: 20px; max-width: 580px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    padding: 28px 28px 24px; max-height: 90vh; overflow-y: auto;
+    transform: translateY(20px); transition: transform 0.3s ease;
+  }
+  .cc-overlay.shown .cc-banner { transform: translateY(0); }
+
+  .cc-title { font-size: 17px; font-weight: 800; color: #1a2744; margin-bottom: 8px; letter-spacing: -0.3px; }
+  .cc-desc { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 20px; }
+  .cc-desc a { color: #2563eb; text-decoration: underline; }
+
+  /* Kategorie */
+  .cc-categories { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+  .cc-cat {
+    border: 1.5px solid #e8e8e4; border-radius: 14px; padding: 14px 16px;
+    transition: border-color 0.15s;
+  }
+  .cc-cat.expanded { border-color: #c8c8c4; }
+  .cc-cat-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    cursor: pointer; user-select: none;
+  }
+  .cc-cat-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .cc-cat-icon { font-size: 18px; flex-shrink: 0; width: 28px; text-align: center; }
+  .cc-cat-name { font-size: 13px; font-weight: 700; color: #1a2744; }
+  .cc-cat-badge {
+    font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    background: #dcfce7; color: #16a34a; text-transform: uppercase; letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+  .cc-cat-badge.optional { background: #eef2ff; color: #1a2744; }
+
+  /* Toggle switch */
+  .cc-toggle { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+  .cc-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .cc-toggle-track {
+    position: absolute; inset: 0; background: #ddd; border-radius: 12px;
+    transition: background 0.2s; cursor: pointer;
+  }
+  .cc-toggle-track::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; background: white; border-radius: 50%;
+    transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .cc-toggle input:checked + .cc-toggle-track { background: #1a2744; }
+  .cc-toggle input:checked + .cc-toggle-track::after { transform: translateX(18px); }
+  .cc-toggle input:disabled + .cc-toggle-track { background: #16a34a; cursor: default; opacity: 0.7; }
+  .cc-toggle input:disabled + .cc-toggle-track::after { transform: translateX(18px); }
+
+  /* Expand */
+  .cc-cat-detail {
+    max-height: 0; overflow: hidden; transition: max-height 0.25s ease;
+  }
+  .cc-cat.expanded .cc-cat-detail { max-height: 200px; }
+  .cc-cat-detail-inner {
+    padding-top: 10px; margin-top: 10px; border-top: 1px solid #f0f0ee;
+    font-size: 12px; color: #777; line-height: 1.65;
+  }
+  .cc-cat-expand {
+    background: none; border: none; cursor: pointer; padding: 0; margin-left: 4px;
+    font-size: 16px; color: #aaa; transition: transform 0.2s, color 0.15s; line-height: 1;
+  }
+  .cc-cat.expanded .cc-cat-expand { transform: rotate(180deg); color: #555; }
+
+  /* Buttons */
+  .cc-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cc-btn {
+    flex: 1; min-width: 120px; padding: 12px 16px; border-radius: 12px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: 'Sora', sans-serif; transition: all 0.15s; border: none;
+    text-align: center;
+  }
+  .cc-btn-reject {
+    background: none; border: 1.5px solid #e8e8e4; color: #555;
+  }
+  .cc-btn-reject:hover { border-color: #1a2744; color: #1a2744; }
+  .cc-btn-save {
+    background: none; border: 1.5px solid #e8e8e4; color: #555;
+  }
+  .cc-btn-save:hover { border-color: #1a2744; color: #1a2744; }
+  .cc-btn-accept {
+    background: #1a2744; color: white; border: 1.5px solid #1a2744;
+  }
+  .cc-btn-accept:hover { background: #243562; border-color: #243562; }
+
+  /* Footer note */
+  .cc-footer {
+    margin-top: 14px; font-size: 10px; color: #aaa; line-height: 1.6; text-align: center;
+  }
+  .cc-footer a { color: #888; }
+
+  @media (max-width: 500px) {
+    .cc-banner { padding: 22px 18px 18px; border-radius: 16px; }
+    .cc-buttons { flex-direction: column; }
+    .cc-btn { min-width: unset; }
+  }
+</style>
+
+<!-- Cookie Consent Banner -->
+<div class="cc-overlay" id="cc-overlay">
+  <div class="cc-banner" role="dialog" aria-label="Ustawienia plików cookie" aria-modal="true">
+    <div class="cc-title">Ustawienia plików cookie</div>
+    <div class="cc-desc">
+      Używamy plików cookie, aby zapewnić prawidłowe działanie sklepu, analizować ruch na stronie
+      i dostosowywać treści. Zgodnie z <strong>RODO</strong> (art. 6 i 7) oraz dyrektywą ePrivacy
+      potrzebujemy Twojej zgody na wykorzystanie plików cookie innych niż niezbędne.
+      Więcej w naszej <a href="/polityka-prywatnosci">polityce prywatności</a>.
+    </div>
+
+    <div class="cc-categories">
+      <!-- Niezbędne — zawsze aktywne -->
+      <div class="cc-cat" id="cc-cat-necessary">
+        <div class="cc-cat-header" onclick="window.__cc.toggleExpand('necessary')">
+          <div class="cc-cat-left">
+            <span class="cc-cat-icon">🔒</span>
+            <span class="cc-cat-name">Niezbędne</span>
+            <span class="cc-cat-badge">Zawsze aktywne</span>
+          </div>
+          <button class="cc-cat-expand" aria-label="Szczegóły">▾</button>
+        </div>
+        <div class="cc-cat-detail">
+          <div class="cc-cat-detail-inner">
+            Pliki cookie wymagane do działania sklepu: sesja użytkownika, koszyk zakupowy,
+            zapamiętanie ustawień cookie. Bez nich strona nie może prawidłowo funkcjonować.
+            <br><strong>Pliki:</strong> cc_consent, cart_items
+            <br><strong>Wygaśnięcie:</strong> sesja / 365 dni
+          </div>
+        </div>
+      </div>
+
+      <!-- Analityczne -->
+      <div class="cc-cat" id="cc-cat-analytics">
+        <div class="cc-cat-header" onclick="window.__cc.toggleExpand('analytics')">
+          <div class="cc-cat-left">
+            <span class="cc-cat-icon">📊</span>
+            <span class="cc-cat-name">Analityczne</span>
+            <span class="cc-cat-badge optional">Opcjonalne</span>
+          </div>
+          <label class="cc-toggle">
+            <input type="checkbox" id="cc-analytics" />
+            <span class="cc-toggle-track"></span>
+          </label>
+          <button class="cc-cat-expand" aria-label="Szczegóły">▾</button>
+        </div>
+        <div class="cc-cat-detail">
+          <div class="cc-cat-detail-inner">
+            Google Analytics 4 — zbieramy anonimowe dane o ruchu na stronie: odwiedzone podstrony,
+            czas spędzony na stronie, typ urządzenia. Dane są anonimizowane (skrócony adres IP).
+            Pomagają nam ulepszać sklep.
+            <br><strong>Dostawca:</strong> Google LLC (USA, transfer na podstawie SCC)
+            <br><strong>Pliki:</strong> _ga, _ga_CWQQMY5X4D
+            <br><strong>Wygaśnięcie:</strong> 14 miesięcy
+          </div>
+        </div>
+      </div>
+
+      <!-- Marketingowe -->
+      <div class="cc-cat" id="cc-cat-marketing">
+        <div class="cc-cat-header" onclick="window.__cc.toggleExpand('marketing')">
+          <div class="cc-cat-left">
+            <span class="cc-cat-icon">📢</span>
+            <span class="cc-cat-name">Marketingowe</span>
+            <span class="cc-cat-badge optional">Opcjonalne</span>
+          </div>
+          <label class="cc-toggle">
+            <input type="checkbox" id="cc-marketing" />
+            <span class="cc-toggle-track"></span>
+          </label>
+          <button class="cc-cat-expand" aria-label="Szczegóły">▾</button>
+        </div>
+        <div class="cc-cat-detail">
+          <div class="cc-cat-detail-inner">
+            Pliki cookie do remarketingu i personalizacji reklam. Pozwalają wyświetlać spersonalizowane
+            reklamy na podstawie odwiedzonych stron. Dane mogą być udostępniane partnerom reklamowym Google.
+            <br><strong>Dostawca:</strong> Google LLC (USA, transfer na podstawie SCC)
+            <br><strong>Pliki:</strong> _gcl_au, IDE
+            <br><strong>Wygaśnięcie:</strong> 3–12 miesięcy
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cc-buttons">
+      <button class="cc-btn cc-btn-reject" onclick="window.__cc.reject()">Odrzuć opcjonalne</button>
+      <button class="cc-btn cc-btn-save" onclick="window.__cc.save()">Zapisz wybór</button>
+      <button class="cc-btn cc-btn-accept" onclick="window.__cc.acceptAll()">Akceptuj wszystkie</button>
+    </div>
+
+    <div class="cc-footer">
+      Możesz zmienić ustawienia w dowolnym momencie klikając „Ustawienia plików cookie" w stopce.<br>
+      Podstawa prawna: art. 6 ust. 1 lit. a RODO · <a href="/polityka-prywatnosci">Polityka prywatności</a> · <a href="/przetwarzanie-danych">Przetwarzanie danych</a>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+(function() {
+  'use strict';
+
+  var COOKIE_NAME = 'cc_consent';
+  var COOKIE_DAYS = 365;
+  var GA_ID = 'G-CWQQMY5X4D';
+
+  // ══════════════════════════════════════
+  // 1. Google Consent Mode v2 — DEFAULTS
+  //    Musi być PRZED załadowaniem gtag.js
+  // ══════════════════════════════════════
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  window.gtag = gtag;
+
+  // Domyślnie wszystko denied (GDPR default)
+  gtag('consent', 'default', {
+    'analytics_storage': 'denied',
+    'ad_storage': 'denied',
+    'ad_user_data': 'denied',
+    'ad_personalization': 'denied',
+    'functionality_storage': 'granted',   // niezbędne
+    'personalization_storage': 'denied',
+    'security_storage': 'granted',        // niezbędne
+    'wait_for_update': 500                // czekaj max 500ms na consent
+  });
+
+  // Region config — restrykcyjna polityka dla EU/EEA + UK
+  gtag('consent', 'default', {
+    'analytics_storage': 'denied',
+    'ad_storage': 'denied',
+    'ad_user_data': 'denied',
+    'ad_personalization': 'denied',
+    'region': ['PL', 'EU', 'EEA', 'GB']
+  });
+
+  // ══════════════════════════════════════
+  // 2. Załaduj gtag.js
+  // ══════════════════════════════════════
+  var gtagScript = document.createElement('script');
+  gtagScript.async = true;
+  gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+  document.head.appendChild(gtagScript);
+
+  gtag('js', new Date());
+  gtag('config', GA_ID, {
+    'anonymize_ip': true,
+    'cookie_flags': 'SameSite=Lax;Secure',
+    'send_page_view': true
+  });
+
+  // ══════════════════════════════════════
+  // 3. Consent cookie management
+  // ══════════════════════════════════════
+  function getConsent() {
+    var match = document.cookie.match(new RegExp('(?:^|; )' + COOKIE_NAME + '=([^;]*)'));
+    if (!match) return null;
+    try { return JSON.parse(decodeURIComponent(match[1])); } catch(e) { return null; }
+  }
+
+  function setConsent(consent) {
+    var val = encodeURIComponent(JSON.stringify(consent));
+    var expires = new Date(Date.now() + COOKIE_DAYS * 864e5).toUTCString();
+    document.cookie = COOKIE_NAME + '=' + val + '; expires=' + expires + '; path=/; SameSite=Lax; Secure';
+  }
+
+  function applyConsent(consent) {
+    var analyticsGranted = consent.analytics ? 'granted' : 'denied';
+    var marketingGranted = consent.marketing ? 'granted' : 'denied';
+
+    gtag('consent', 'update', {
+      'analytics_storage': analyticsGranted,
+      'ad_storage': marketingGranted,
+      'ad_user_data': marketingGranted,
+      'ad_personalization': marketingGranted
+    });
+
+    // Jeśli analytics denied — wyczyść istniejące cookies GA
+    if (!consent.analytics) {
+      deleteCookiesByPrefix('_ga');
+      deleteCookiesByPrefix('_gid');
+    }
+    if (!consent.marketing) {
+      deleteCookiesByPrefix('_gcl');
+      deleteCookiesByPrefix('IDE');
+    }
+  }
+
+  function deleteCookiesByPrefix(prefix) {
+    document.cookie.split(';').forEach(function(c) {
+      var name = c.trim().split('=')[0];
+      if (name.indexOf(prefix) === 0) {
+        // Usuwamy na kilku wariantach domain/path
+        var domains = [location.hostname, '.' + location.hostname, ''];
+        domains.forEach(function(d) {
+          document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;' + (d ? ' domain=' + d + ';' : '');
+        });
+      }
+    });
+  }
+
+  // ══════════════════════════════════════
+  // 4. Banner UI logic
+  // ══════════════════════════════════════
+  var overlay = document.getElementById('cc-overlay');
+  var cbAnalytics = document.getElementById('cc-analytics');
+  var cbMarketing = document.getElementById('cc-marketing');
+
+  function showBanner() {
+    overlay.classList.add('visible');
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        overlay.classList.add('shown');
+      });
+    });
+    // Trap focus: prevent scrolling behind overlay
+    document.body.style.overflow = 'hidden';
+  }
+
+  function hideBanner() {
+    overlay.classList.remove('shown');
+    document.body.style.overflow = '';
+    setTimeout(function() { overlay.classList.remove('visible'); }, 250);
+  }
+
+  function saveAndClose(consent) {
+    consent.timestamp = new Date().toISOString();
+    consent.version = '1.0';
+    setConsent(consent);
+    applyConsent(consent);
+    hideBanner();
+  }
+
+  // Public API
+  window.__cc = {
+    toggleExpand: function(id) {
+      var cat = document.getElementById('cc-cat-' + id);
+      if (cat) cat.classList.toggle('expanded');
+    },
+
+    acceptAll: function() {
+      if (cbAnalytics) cbAnalytics.checked = true;
+      if (cbMarketing) cbMarketing.checked = true;
+      saveAndClose({ necessary: true, analytics: true, marketing: true });
+    },
+
+    reject: function() {
+      if (cbAnalytics) cbAnalytics.checked = false;
+      if (cbMarketing) cbMarketing.checked = false;
+      saveAndClose({ necessary: true, analytics: false, marketing: false });
+    },
+
+    save: function() {
+      saveAndClose({
+        necessary: true,
+        analytics: cbAnalytics ? cbAnalytics.checked : false,
+        marketing: cbMarketing ? cbMarketing.checked : false
+      });
+    },
+
+    open: function() {
+      // Odczytaj aktualny consent i ustaw checkboxy
+      var current = getConsent();
+      if (current) {
+        if (cbAnalytics) cbAnalytics.checked = !!current.analytics;
+        if (cbMarketing) cbMarketing.checked = !!current.marketing;
+      }
+      showBanner();
+    }
+  };
+
+  // ══════════════════════════════════════
+  // 5. Init — sprawdź istniejący consent
+  // ══════════════════════════════════════
+  var existing = getConsent();
+  if (existing) {
+    // Consent istnieje — zastosuj
+    if (cbAnalytics) cbAnalytics.checked = !!existing.analytics;
+    if (cbMarketing) cbMarketing.checked = !!existing.marketing;
+    applyConsent(existing);
+  } else {
+    // Brak consent — pokaż banner
+    showBanner();
+  }
+
+  // ══════════════════════════════════════
+  // 6. Footer link — otwieranie ustawień
+  // ══════════════════════════════════════
+  var cookieSettingsLink = document.getElementById('cookie-settings');
+  if (cookieSettingsLink) {
+    cookieSettingsLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      window.__cc.open();
+    });
+  }
+
+  // Close on overlay click (outside banner)
+  overlay.addEventListener('click', function(e) {
+    // Nie zamykaj na klik overlay — użytkownik MUSI podjąć decyzję (GDPR)
+    // Jedynie jeśli consent już istnieje, pozwól zamknąć
+    if (e.target === overlay && getConsent()) {
+      hideBanner();
+    }
+  });
+
+  // ESC key — zamknij tylko jeśli consent istnieje
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && overlay.classList.contains('visible') && getConsent()) {
+      hideBanner();
+    }
+  });
+
+})();
+</script>

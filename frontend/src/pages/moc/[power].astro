@@ -1,0 +1,305 @@
+---
+//frontend/src/pages/moc/[power].astro
+import Layout from '../../layouts/Layout.astro';
+import { fetchAllMotorsRaw } from '../../lib/api.ts';
+
+function slugToKw(slug: string): number {
+  return parseFloat(slug.replace(/kw$/, '').replace(/-/g, '.'));
+}
+
+export async function getStaticPaths() {
+  function kwToSlug(kw: number): string {
+    return kw.toString().replace('.', '-') + 'kw';
+  }
+  const { fetchAllMotorsRaw } = await import('../../lib/api.ts');
+  const all = await fetchAllMotorsRaw();
+  const counts: Record<string, number> = {};
+  all.forEach((p: any) => {
+    const pw = p.power?.value;
+    if (pw != null && typeof pw === 'number' && !isNaN(pw) && pw > 0) {
+      const key = pw.toString();
+      counts[key] = (counts[key] || 0) + 1;
+    }
+  });
+  return Object.entries(counts)
+    .filter(([, cnt]) => cnt >= 2)
+    .map(([kw]) => ({ params: { power: kwToSlug(parseFloat(kw)) } }));
+}
+
+const { power } = Astro.params;
+const kw = slugToKw(power);
+const label = kw.toString().replace('.', ',');
+const all = await fetchAllMotorsRaw();
+const products = all.filter((p: any) =>
+  typeof p.power?.value === 'number' && Math.abs(p.power.value - kw) < 0.01
+);
+
+const CATS = [
+  { slug: 'trojfazowe',    label: 'Trójfazowe' },
+  { slug: 'jednofazowe',   label: 'Jednofazowe' },
+  { slug: 'z-hamulcem',    label: 'Z hamulcem' },
+  { slug: 'dwubiegowe',    label: 'Dwubiegowe' },
+];
+const catCounts = CATS.map(c => ({
+  ...c,
+  cnt: products.filter((p: any) =>
+    (p.categories||[]).some((x: any) => (x.category?.slug||x.slug||'') === c.slug)
+  ).length
+})).filter(c => c.cnt > 0);
+
+const allPowCounts: Record<string, number> = {};
+all.forEach((p: any) => {
+  const pw = p.power?.value;
+  if (pw != null && typeof pw === 'number' && pw > 0) {
+    const k = pw.toString();
+    allPowCounts[k] = (allPowCounts[k]||0)+1;
+  }
+});
+const otherPowers = Object.entries(allPowCounts)
+  .filter(([k, cnt]) => cnt >= 2 && Math.abs(Number(k) - kw) > 0.01)
+  .sort((a,b) => Number(a[0])-Number(b[0]))
+  .slice(0, 12)
+  .map(([k]) => ({ kw: Number(k), label: Number(k).toString().replace('.',','), slug: k.replace('.','-')+'kw' }));
+
+// Link SEO do sklepu głównego
+const shopPowerSlug = kw.toString().replace('.', '-');
+const shopPowerUrl = `https://www.silniki-elektryczne.com.pl/silniki-elektryczne-${shopPowerSlug}-kw`;
+
+// SSR: pierwsza strona produktów
+const PER_PAGE = 24;
+const firstPageProducts = products.slice(0, PER_PAGE);
+
+function cap(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+---
+<Layout
+  title={`Używane silniki elektryczne ${label} kW – silnik-elektryczny.pl`}
+  description={`Używane silniki elektryczne ${label} kW. ${products.length} silników w ofercie. Kup online z dostawą kurierem.`}
+  canonical={`https://www.silnik-elektryczny.pl/moc/${power}`}
+>
+  <style is:global slot="head">
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root { --navy:#1a2744; --blue:#2563eb; --surface:#f8f8f6; --border:#e8e8e4; --text:#1a1a1a; --muted:#8a8a8a; }
+    .hero { background:linear-gradient(135deg,#1a2744,#243562); padding:36px 24px; color:white; }
+    .hero-inner { max-width:1280px; margin:0 auto; }
+    .hero-bc { font-size:12px; color:rgba(255,255,255,0.45); margin-bottom:10px; }
+    .hero-bc a { color:rgba(255,255,255,0.5); text-decoration:none; }
+    .hero-bc a:hover { color:white; }
+    .hero h1 { font-size:26px; font-weight:800; letter-spacing:-0.4px; margin-bottom:4px; }
+    .hero p { font-size:13px; color:rgba(255,255,255,0.55); }
+    .catalog-wrap { max-width:1280px; margin:0 auto; padding:28px 24px 80px; display:grid; grid-template-columns:220px 1fr; gap:28px; align-items:start; }
+    @media(max-width:860px){ .catalog-wrap { grid-template-columns:1fr; } }
+    .sidebar { position:sticky; top:76px; display:flex; flex-direction:column; gap:14px; }
+    @media(max-width:860px){ .sidebar { position:static; } }
+    .fbox { background:white; border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
+    .ftitle { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+    .flist { display:flex; flex-direction:column; gap:2px; }
+    .fcat { display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:500; color:var(--text); border:none; background:none; width:100%; text-align:left; transition:background 0.1s; }
+    .fcat:hover { background:#f5f5f3; }
+    .fcat.on { background:#eef2ff; color:var(--navy); font-weight:700; }
+    .fcat .cnt { font-size:11px; color:var(--muted); background:#f0f0ee; padding:2px 7px; border-radius:10px; }
+    .fcat.on .cnt { background:#dde4ff; color:var(--navy); }
+    .pow-links { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+    .pow-link { display:block; padding:6px 4px; border-radius:7px; border:1.5px solid var(--border); font-size:11px; font-weight:600; text-align:center; text-decoration:none; color:var(--text); transition:all 0.12s; }
+    .pow-link:hover { border-color:var(--navy); color:var(--navy); background:#f0f3ff; }
+    .clrbtn { width:100%; padding:9px; border-radius:8px; border:1.5px solid var(--border); background:none; font-size:12px; font-weight:600; cursor:pointer; color:var(--muted); font-family:'Sora',sans-serif; transition:all 0.15s; }
+    .clrbtn:hover { border-color:#ef4444; color:#ef4444; }
+    .rhead { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:8px; }
+    .rcnt { font-size:13px; color:var(--muted); }
+    .tags { display:flex; gap:6px; flex-wrap:wrap; }
+    .tag { display:inline-flex; align-items:center; gap:5px; padding:4px 10px 4px 12px; background:#eef2ff; color:var(--navy); border-radius:20px; font-size:12px; font-weight:600; }
+    .tag button { background:none; border:none; cursor:pointer; color:var(--navy); font-size:16px; line-height:1; padding:0 0 0 2px; opacity:0.5; }
+    .tag button:hover { opacity:1; }
+    .pgrid-products { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:14px; }
+    .card { background:white; border-radius:14px; border:1px solid var(--border); overflow:hidden; text-decoration:none; color:inherit; display:flex; flex-direction:column; transition:box-shadow 0.18s,transform 0.18s; }
+    .card:hover { box-shadow:0 8px 28px rgba(0,0,0,0.1); transform:translateY(-2px); }
+    .card-img { aspect-ratio:1; background:#f7f7f5; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:12px; }
+    .card-img img { max-width:100%; max-height:100%; object-fit:contain; transition:transform 0.3s; }
+    .card:hover .card-img img { transform:scale(1.06); }
+    .card-body { padding:12px 14px 14px; display:flex; flex-direction:column; gap:4px; flex:1; }
+    .card-mfr { font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--muted); }
+    .card-name { font-size:12px; font-weight:600; line-height:1.45; color:var(--text); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; flex:1; }
+    .card-specs { font-size:11px; color:var(--muted); font-family:'DM Mono',monospace; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .card-bottom { display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid #f0f0ee; }
+    .card-price { font-size:16px; font-weight:800; color:var(--navy); font-family:'DM Mono',monospace; }
+    .card-badge { font-size:10px; font-weight:600; padding:3px 8px; border-radius:20px; background:#dcfce7; color:#16a34a; }
+    .nores { text-align:center; padding:60px 20px; color:var(--muted); font-size:15px; grid-column:1/-1; }
+    .pg { display:flex; justify-content:center; align-items:center; gap:6px; margin-top:32px; flex-wrap:wrap; }
+    .pg-btn { min-width:38px; height:38px; padding:0 10px; border-radius:10px; border:1.5px solid var(--border); background:white; color:var(--text); font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; font-family:'Sora',sans-serif; display:inline-flex; align-items:center; justify-content:center; }
+    .pg-btn:hover:not(:disabled) { border-color:var(--navy); color:var(--navy); }
+    .pg-btn.on { border-color:var(--navy); background:var(--navy); color:white; }
+    .pg-btn:disabled { opacity:0.35; cursor:default; }
+    .pg-dots { color:var(--muted); padding:0 4px; }
+    .seo-section { background:white; border-top:1px solid var(--border); padding:48px 24px; }
+    .seo-inner { max-width:960px; margin:0 auto; }
+    .seo-inner h2 { font-size:18px; font-weight:800; color:var(--text); margin-bottom:12px; letter-spacing:-0.3px; }
+    .seo-inner p { font-size:14px; line-height:1.8; color:#555; margin-bottom:10px; }
+    .seo-inner a { color:var(--navy); text-decoration:underline; }
+  </style>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-bc"><a href="/">Strona główna</a> / <a href="/">Silniki elektryczne</a> / {label} kW</div>
+      <h1>Używane silniki elektryczne {label} kW</h1>
+      <p>{products.length} produktów · Wysyłka 2–4 dni</p>
+    </div>
+  </section>
+
+  <div class="catalog-wrap" id="katalog">
+    <aside class="sidebar">
+      {catCounts.length > 0 && (
+        <div class="fbox">
+          <div class="ftitle">Kategoria</div>
+          <div class="flist" id="cat-list">
+            <button class="fcat on" data-cat="">Wszystkie <span class="cnt" id="cnt-all">{products.length}</span></button>
+            {catCounts.map(c => (
+              <button class="fcat" data-cat={c.slug}>
+                {c.label} <span class="cnt" id={`cnt-${c.slug}`}>{c.cnt}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {otherPowers.length > 0 && (
+        <div class="fbox">
+          <div class="ftitle">Inne moce</div>
+          <div class="pow-links">
+            {otherPowers.map(pw => (
+              <a href={`/moc/${pw.slug}`} class="pow-link">{pw.label}</a>
+            ))}
+          </div>
+        </div>
+      )}
+      <button class="clrbtn" id="clr">✕ Wyczyść filtr</button>
+    </aside>
+
+    <main>
+      <div class="rhead">
+        <span class="rcnt" id="rcnt">{products.length} produktów</span>
+        <div class="tags" id="tags"></div>
+      </div>
+      <!-- SSR: pierwsza strona produktów widoczna dla crawlerów -->
+      <div class="pgrid-products" id="grid">
+        {firstPageProducts.map((p: any) => {
+          const pSlug = p.marketplaces?.ownStore?.slug;
+          const pImg = p.mainImage || '/placeholder.webp';
+          const pPrice = Number(p.marketplaces?.ownStore?.price ?? p.price);
+          const pName = cap(p.name);
+          const pw = p.power?.value;
+          const pSpecs = [pw && `${pw} kW`, p.rpm?.value && `${p.rpm.value} obr/min`, p.weight && `${p.weight} kg`].filter(Boolean).join(' · ');
+          return (
+            <a href={`/silnik/${pSlug}`} class="card">
+              <div class="card-img"><img src={pImg} alt={pName} loading="lazy" /></div>
+              <div class="card-body">
+                {p.manufacturer && <div class="card-mfr">{p.manufacturer}</div>}
+                <div class="card-name">{pName}</div>
+                {pSpecs && <div class="card-specs">{pSpecs}</div>}
+                <div class="card-bottom">
+                  <span class="card-price">{pPrice.toLocaleString('pl-PL')} zł</span>
+                  <span class="card-badge">dostępny</span>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+      <div class="pg" id="pg"></div>
+    </main>
+  </div>
+
+  <section class="seo-section">
+    <div class="seo-inner">
+      <h2>Silniki elektryczne {label} kW</h2>
+      <p>Przeglądasz ofertę używanych silników o mocy {label} kW. Każdy napęd przeszedł kontrolę stanu technicznego przed wystawieniem — znajdziesz tu silniki trójfazowe 400V, jednofazowe 230V oraz modele z hamulcem elektromagnetycznym. Wszystkie <a href={shopPowerUrl}>silniki elektryczne {label} kW</a> pochodzą ze sklepu Stojan, gdzie możesz złożyć zamówienie z dostawą kurierem w 2–4 dni robocze.</p>
+    </div>
+  </section>
+
+  <script define:vars={{ products, catCounts }}>
+    const PER = 24;
+    let cat = '', page = 1;
+
+    const u = new URLSearchParams(location.search);
+    if (u.get('kat')) cat = u.get('kat');
+    if (u.get('s')) page = parseInt(u.get('s')) || 1;
+
+    const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    const matchCat = (p, c) => !c || (p.categories||[]).some(x => (x.category?.slug||x.slug||'') === c);
+    const visible = () => products.filter(p => matchCat(p, cat));
+
+    function render() {
+      const list = visible();
+      const pages = Math.ceil(list.length / PER) || 1;
+      if (page > pages) page = 1;
+      const slice = list.slice((page-1)*PER, page*PER);
+
+      document.getElementById('rcnt').textContent =
+        `${list.length} ${list.length===1?'produkt':list.length<5?'produkty':'produktów'}`;
+
+      const tagsEl = document.getElementById('tags');
+      tagsEl.innerHTML = '';
+      if (cat) {
+        const label = catCounts.find(c=>c.slug===cat)?.label || cat;
+        const t = document.createElement('span'); t.className='tag';
+        t.innerHTML = `${label} <button onclick="clrCat()">×</button>`;
+        tagsEl.appendChild(t);
+      }
+
+      const grid = document.getElementById('grid');
+      grid.innerHTML = !slice.length
+        ? '<p class="nores">Brak produktów</p>'
+        : slice.map(p => {
+            const slug = p.marketplaces?.ownStore?.slug;
+            const img = p.mainImage || '/placeholder.webp';
+            const price = Number(p.marketplaces?.ownStore?.price ?? p.price);
+            const pw = p.power?.value;
+            const specs = [pw&&`${pw} kW`, p.rpm?.value&&`${p.rpm.value} obr/min`, p.weight&&`${p.weight} kg`].filter(Boolean).join(' · ');
+            const name = cap(p.name);
+            return `<a href="/silnik/${slug}" class="card">
+              <div class="card-img"><img src="${img}" alt="${name}" loading="lazy"></div>
+              <div class="card-body">
+                ${p.manufacturer?`<div class="card-mfr">${p.manufacturer}</div>`:''}
+                <div class="card-name">${name}</div>
+                ${specs?`<div class="card-specs">${specs}</div>`:''}
+                <div class="card-bottom">
+                  <span class="card-price">${price.toLocaleString('pl-PL')} zł</span>
+                  <span class="card-badge">dostępny</span>
+                </div>
+              </div>
+            </a>`;
+          }).join('');
+
+      const pgEl = document.getElementById('pg');
+      if (pages<=1) { pgEl.innerHTML=''; } else {
+        let h = `<button class="pg-btn" onclick="goP(${page-1})" ${page===1?'disabled':''}>‹</button>`;
+        for (let i=1; i<=pages; i++) {
+          if (pages>8 && i!==1 && i!==pages && Math.abs(i-page)>2) {
+            if (i===page-3||i===page+3) h+='<span class="pg-dots">…</span>';
+            continue;
+          }
+          h+=`<button class="pg-btn${i===page?' on':''}" onclick="goP(${i})">${i}</button>`;
+        }
+        h+=`<button class="pg-btn" onclick="goP(${page+1})" ${page===pages?'disabled':''}>›</button>`;
+        pgEl.innerHTML=h;
+      }
+
+      document.querySelectorAll('[data-cat]').forEach(b => b.classList.toggle('on', b.dataset.cat===cat));
+
+      const p2 = new URLSearchParams();
+      if (cat) p2.set('kat', cat);
+      if (page>1) p2.set('s', page);
+      history.replaceState(null,'', p2.toString() ? '?'+p2 : location.pathname);
+    }
+
+    window.goP = p => { page=p; render(); document.getElementById('katalog').scrollIntoView({behavior:'smooth',block:'start'}); };
+    window.clrCat = () => { cat=''; page=1; render(); };
+
+    document.getElementById('cat-list')?.addEventListener('click', e => {
+      const b = e.target.closest('[data-cat]'); if (!b) return;
+      cat=b.dataset.cat; page=1; render();
+    });
+    document.getElementById('clr').addEventListener('click', () => { cat=''; page=1; render(); });
+
+    render();
+  </script>
+</Layout>

@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { CheckoutForm } from '../components/CheckoutForm';
+---
+<Layout title="Zamówienie – silnik-elektryczny.pl" noindex={true}>
+  <style>
+    main { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+    h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 32px; color: var(--text); }
+  </style>
+  <main>
+    <h1>Zamówienie</h1>
+    <CheckoutForm client:load />
+  </main>
+</Layout>
