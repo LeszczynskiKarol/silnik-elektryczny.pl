@@ -1,10 +1,51 @@
 ---
 import Layout from '../layouts/Layout.astro';
+
+const schemaLocalBusiness = {
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "name": "Stojan S.C. Adam Król, Włodzimierz Leszczyński",
+  "alternateName": "silnik-elektryczny.pl",
+  "url": "https://www.silnik-elektryczny.pl/",
+  "logo": "https://www.silnik-elektryczny.pl/android-chrome-512x512.png",
+  "image": "https://www.silnik-elektryczny.pl/og-default.png",
+  "telephone": "+48500385112",
+  "email": "stojan@silniki-elektryczne.com.pl",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Wojewódzka 2",
+    "postalCode": "87-152",
+    "addressLocality": "Pigża",
+    "addressCountry": "PL"
+  },
+  "vatID": "PL8790003705",
+  "taxID": "8790003705",
+  "identifier": [
+    { "@type": "PropertyValue", "name": "REGON", "value": "870039184" },
+    { "@type": "PropertyValue", "name": "NIP",   "value": "8790003705" }
+  ],
+  "sameAs": [
+    "https://www.silniki-elektryczne.com.pl/"
+  ]
+};
+
+const schemaBreadcrumb = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Strona główna", "item": "https://www.silnik-elektryczny.pl/" },
+    { "@type": "ListItem", "position": 2, "name": "Kontakt", "item": "https://www.silnik-elektryczny.pl/kontakt/" }
+  ]
+};
 ---
 <Layout
-  title="Kontakt – silnik-elektryczny.pl"
-  noindex={true}
+  title="Kontakt – Stojan S.C. silnik-elektryczny.pl"
+  description="Stojan S.C. – sklep z używanymi silnikami elektrycznymi. Telefon 500 385 112, e-mail stojan@silniki-elektryczne.com.pl, Wojewódzka 2, 87-152 Pigża."
+  canonical="https://www.silnik-elektryczny.pl/kontakt/"
+  showCart={false}
 >
+  <script type="application/ld+json" set:html={JSON.stringify(schemaLocalBusiness)} slot="head" />
+  <script type="application/ld+json" set:html={JSON.stringify(schemaBreadcrumb)} slot="head" />
   <style is:global slot="head">
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root { --navy:#1a2744; --blue:#2563eb; --surface:#f8f8f6; --border:#e8e8e4; --text:#1a1a1a; --muted:#8a8a8a; }

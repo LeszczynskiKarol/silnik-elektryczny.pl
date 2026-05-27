@@ -2,6 +2,7 @@
 //frontend/src/pages/moc/[power].astro
 import Layout from '../../layouts/Layout.astro';
 import { fetchAllMotorsRaw } from '../../lib/api.ts';
+import ProductImage from '../../components/ProductImage.astro';
 
 function slugToKw(slug: string): number {
   return parseFloat(slug.replace(/kw$/, '').replace(/-/g, '.'));
@@ -72,12 +73,43 @@ const firstPageProducts = products.slice(0, PER_PAGE);
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
+
+const canonical = `https://www.silnik-elektryczny.pl/moc/${power}/`;
+
+const schemaBreadcrumb = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Strona główna", "item": "https://www.silnik-elektryczny.pl/" },
+    { "@type": "ListItem", "position": 2, "name": `${label} kW`, "item": canonical }
+  ]
+};
+
+const schemaCollection = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": `Używane silniki elektryczne ${label} kW`,
+  "url": canonical,
+  "isPartOf": { "@type": "WebSite", "name": "silnik-elektryczny.pl", "url": "https://www.silnik-elektryczny.pl" },
+  "mainEntity": {
+    "@type": "ItemList",
+    "numberOfItems": products.length,
+    "itemListElement": firstPageProducts.map((p: any, i: number) => ({
+      "@type": "ListItem",
+      "position": i + 1,
+      "url": `https://www.silnik-elektryczny.pl/silnik/${p.marketplaces?.ownStore?.slug}/`,
+      "name": p.name
+    }))
+  }
+};
 ---
 <Layout
   title={`Używane silniki elektryczne ${label} kW – silnik-elektryczny.pl`}
   description={`Używane silniki elektryczne ${label} kW. ${products.length} silników w ofercie. Kup online z dostawą kurierem.`}
-  canonical={`https://www.silnik-elektryczny.pl/moc/${power}`}
+  canonical={canonical}
 >
+  <script type="application/ld+json" set:html={JSON.stringify(schemaBreadcrumb)} slot="head" />
+  <script type="application/ld+json" set:html={JSON.stringify(schemaCollection)} slot="head" />
   <style is:global slot="head">
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root { --navy:#1a2744; --blue:#2563eb; --surface:#f8f8f6; --border:#e8e8e4; --text:#1a1a1a; --muted:#8a8a8a; }
@@ -166,7 +198,7 @@ function cap(s: string): string {
           <div class="ftitle">Inne moce</div>
           <div class="pow-links">
             {otherPowers.map(pw => (
-              <a href={`/moc/${pw.slug}`} class="pow-link">{pw.label}</a>
+              <a href={`/moc/${pw.slug}/`} class="pow-link">{pw.label}</a>
             ))}
           </div>
         </div>
@@ -189,8 +221,8 @@ function cap(s: string): string {
           const pw = p.power?.value;
           const pSpecs = [pw && `${pw} kW`, p.rpm?.value && `${p.rpm.value} obr/min`, p.weight && `${p.weight} kg`].filter(Boolean).join(' · ');
           return (
-            <a href={`/silnik/${pSlug}`} class="card">
-              <div class="card-img"><img src={pImg} alt={pName} loading="lazy" /></div>
+            <a href={`/silnik/${pSlug}/`} class="card">
+              <div class="card-img"><ProductImage src={pImg} alt={pName} sizes="(max-width: 600px) 50vw, 190px" /></div>
               <div class="card-body">
                 {p.manufacturer && <div class="card-mfr">{p.manufacturer}</div>}
                 <div class="card-name">{pName}</div>
@@ -224,6 +256,16 @@ function cap(s: string): string {
     if (u.get('s')) page = parseInt(u.get('s')) || 1;
 
     const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    const escAttr = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    function imgHtml(src, alt, sizes) {
+      if (!src) return '';
+      const m = src.match(/^(.+\/products\/[^?#]+?)(\.(?:jpe?g|png|webp))(\?.*)?$/i);
+      const altAttr = escAttr(alt || '');
+      if (!m) return `<img src="${escAttr(src)}" alt="${altAttr}" loading="lazy" decoding="async">`;
+      const base = m[1], q = m[3] || '';
+      const fullWebp = /\.webp(\?|$)/i.test(src) ? escAttr(src) : `${base}.webp${q}`;
+      return `<picture><source type="image/webp" srcset="${base}-600w.webp${q} 600w, ${base}-1200w.webp${q} 1200w, ${fullWebp} 2000w" sizes="${sizes||'190px'}"><img src="${escAttr(src)}" alt="${altAttr}" loading="lazy" decoding="async"></picture>`;
+    }
     const matchCat = (p, c) => !c || (p.categories||[]).some(x => (x.category?.slug||x.slug||'') === c);
     const visible = () => products.filter(p => matchCat(p, cat));
 
@@ -255,8 +297,8 @@ function cap(s: string): string {
             const pw = p.power?.value;
             const specs = [pw&&`${pw} kW`, p.rpm?.value&&`${p.rpm.value} obr/min`, p.weight&&`${p.weight} kg`].filter(Boolean).join(' · ');
             const name = cap(p.name);
-            return `<a href="/silnik/${slug}" class="card">
-              <div class="card-img"><img src="${img}" alt="${name}" loading="lazy"></div>
+            return `<a href="/silnik/${slug}/" class="card">
+              <div class="card-img">${imgHtml(img, name, '(max-width: 600px) 50vw, 190px')}</div>
               <div class="card-body">
                 ${p.manufacturer?`<div class="card-mfr">${p.manufacturer}</div>`:''}
                 <div class="card-name">${name}</div>

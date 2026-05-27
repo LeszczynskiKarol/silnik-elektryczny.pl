@@ -136,7 +136,7 @@ export default function AddToCart({ product: p, slug }: Props) {
       </div>
 
       <a
-        href="/checkout"
+        href="/checkout/"
         style={s.buyBtn}
         onClick={addToCart}
         onMouseEnter={(e) => {

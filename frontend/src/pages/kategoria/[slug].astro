@@ -2,6 +2,7 @@
 //frontend/src/pages/kategoria/[slug].astro
 import Layout from '../../layouts/Layout.astro';
 import { fetchAllShopRaw } from '../../lib/api.ts';
+import ProductImage from '../../components/ProductImage.astro';
 
 const CATEGORIES: Record<string, { label: string; desc: string }> = {
   'trojfazowe':              { label: 'Trójfazowe',              desc: 'Silniki 3-fazowe' },
@@ -71,12 +72,43 @@ const firstPageProducts = products.slice(0, PER_PAGE);
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
+
+const canonical = `https://www.silnik-elektryczny.pl/kategoria/${slug}/`;
+
+const schemaBreadcrumb = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Strona główna", "item": "https://www.silnik-elektryczny.pl/" },
+    { "@type": "ListItem", "position": 2, "name": cat.label, "item": canonical }
+  ]
+};
+
+const schemaCollection = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": `Używane ${cat.label.toLowerCase()}`,
+  "url": canonical,
+  "isPartOf": { "@type": "WebSite", "name": "silnik-elektryczny.pl", "url": "https://www.silnik-elektryczny.pl" },
+  "mainEntity": {
+    "@type": "ItemList",
+    "numberOfItems": products.length,
+    "itemListElement": firstPageProducts.map((p: any, i: number) => ({
+      "@type": "ListItem",
+      "position": i + 1,
+      "url": `https://www.silnik-elektryczny.pl/silnik/${p.marketplaces?.ownStore?.slug}/`,
+      "name": p.name
+    }))
+  }
+};
 ---
 <Layout
   title={`Używane ${cat.label.toLowerCase()} – sklep | silnik-elektryczny.pl`}
   description={`Używane ${cat.label.toLowerCase()} – ${cat.desc}. ${products.length} produktów w ofercie. Kup online z dostawą.`}
-  canonical={`https://www.silnik-elektryczny.pl/kategoria/${slug}`}
+  canonical={canonical}
 >
+  <script type="application/ld+json" set:html={JSON.stringify(schemaBreadcrumb)} slot="head" />
+  <script type="application/ld+json" set:html={JSON.stringify(schemaCollection)} slot="head" />
   <style is:global slot="head">
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root { --navy:#1a2744; --blue:#2563eb; --surface:#f8f8f6; --border:#e8e8e4; --text:#1a1a1a; --muted:#8a8a8a; }
@@ -159,7 +191,7 @@ function cap(s: string): string {
         <div class="ftitle">Inne kategorie</div>
         <div class="flist">
           {OTHER_CATS.map(([s, c]) => (
-            <a href={`/kategoria/${s}`} class="fcat">{c.label}</a>
+            <a href={`/kategoria/${s}/`} class="fcat">{c.label}</a>
           ))}
         </div>
       </div>
@@ -181,8 +213,8 @@ function cap(s: string): string {
           const pw = p.power?.value;
           const pSpecs = [pw && `${pw} kW`, p.rpm?.value && `${p.rpm.value} obr/min`, p.weight && `${p.weight} kg`].filter(Boolean).join(' · ');
           return (
-            <a href={`/silnik/${pSlug}`} class="card">
-              <div class="card-img"><img src={pImg} alt={pName} loading="lazy" /></div>
+            <a href={`/silnik/${pSlug}/`} class="card">
+              <div class="card-img"><ProductImage src={pImg} alt={pName} sizes="(max-width: 600px) 50vw, 190px" /></div>
               <div class="card-body">
                 {p.manufacturer && <div class="card-mfr">{p.manufacturer}</div>}
                 <div class="card-name">{pName}</div>
@@ -218,6 +250,16 @@ function cap(s: string): string {
     if (u.get('s')) page = parseInt(u.get('s')) || 1;
 
     const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    const escAttr = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    function imgHtml(src, alt, sizes) {
+      if (!src) return '';
+      const m = src.match(/^(.+\/products\/[^?#]+?)(\.(?:jpe?g|png|webp))(\?.*)?$/i);
+      const altAttr = escAttr(alt || '');
+      if (!m) return `<img src="${escAttr(src)}" alt="${altAttr}" loading="lazy" decoding="async">`;
+      const base = m[1], q = m[3] || '';
+      const fullWebp = /\.webp(\?|$)/i.test(src) ? escAttr(src) : `${base}.webp${q}`;
+      return `<picture><source type="image/webp" srcset="${base}-600w.webp${q} 600w, ${base}-1200w.webp${q} 1200w, ${fullWebp} 2000w" sizes="${sizes||'190px'}"><img src="${escAttr(src)}" alt="${altAttr}" loading="lazy" decoding="async"></picture>`;
+    }
     const matchPow = (p, pw) => pw === null || (typeof p.power?.value === 'number' && Math.abs(p.power.value - pw) < 0.01);
     const visible = () => products.filter(p => matchPow(p, pow));
 
@@ -248,8 +290,8 @@ function cap(s: string): string {
             const pw = p.power?.value;
             const specs = [pw&&`${pw} kW`, p.rpm?.value&&`${p.rpm.value} obr/min`, p.weight&&`${p.weight} kg`].filter(Boolean).join(' · ');
             const name = cap(p.name);
-            return `<a href="/silnik/${slug}" class="card">
-              <div class="card-img"><img src="${img}" alt="${name}" loading="lazy"></div>
+            return `<a href="/silnik/${slug}/" class="card">
+              <div class="card-img">${imgHtml(img, name, '(max-width: 600px) 50vw, 190px')}</div>
               <div class="card-body">
                 ${p.manufacturer?`<div class="card-mfr">${p.manufacturer}</div>`:''}
                 <div class="card-name">${name}</div>

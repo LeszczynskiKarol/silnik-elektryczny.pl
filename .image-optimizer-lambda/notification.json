@@ -1,0 +1,56 @@
+{
+  "LambdaFunctionConfigurations": [
+    {
+      "Id": "piszemy-image-optimizer-jpg",
+      "LambdaFunctionArn": "arn:aws:lambda:eu-north-1:381492300277:function:piszemy-image-optimizer",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            { "Name": "prefix", "Value": "products/" },
+            { "Name": "suffix", "Value": ".JPG" }
+          ]
+        }
+      }
+    },
+    {
+      "Id": "piszemy-image-optimizer-jpg-lower",
+      "LambdaFunctionArn": "arn:aws:lambda:eu-north-1:381492300277:function:piszemy-image-optimizer",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            { "Name": "prefix", "Value": "products/" },
+            { "Name": "suffix", "Value": ".jpg" }
+          ]
+        }
+      }
+    },
+    {
+      "Id": "piszemy-image-optimizer-jpeg",
+      "LambdaFunctionArn": "arn:aws:lambda:eu-north-1:381492300277:function:piszemy-image-optimizer",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            { "Name": "prefix", "Value": "products/" },
+            { "Name": "suffix", "Value": ".jpeg" }
+          ]
+        }
+      }
+    },
+    {
+      "Id": "piszemy-image-optimizer-png",
+      "LambdaFunctionArn": "arn:aws:lambda:eu-north-1:381492300277:function:piszemy-image-optimizer",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            { "Name": "prefix", "Value": "products/" },
+            { "Name": "suffix", "Value": ".png" }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -96,7 +96,7 @@ export default function CartDropdown() {
                   {item.image && <img src={item.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <a href={`/silnik/${item.productSlug}`} style={{ fontSize: '12px', fontWeight: '500', color: '#1a1a1a', textDecoration: 'none', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4' }}>
+                  <a href={`/silnik/${item.productSlug}/`} style={{ fontSize: '12px', fontWeight: '500', color: '#1a1a1a', textDecoration: 'none', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4' }}>
                     {item.name}
                   </a>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
@@ -121,7 +121,7 @@ export default function CartDropdown() {
                 <span style={{ fontSize: '13px', color: '#8a8a8a' }}>Razem</span>
                 <span style={{ fontSize: '18px', fontWeight: '800', color: '#1a1a1a' }}>{fmt(subtotal)} zł</span>
               </div>
-              <a href="/checkout" onClick={() => setOpen(false)} style={{
+              <a href="/checkout/" onClick={() => setOpen(false)} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                 width: '100%', height: '44px', borderRadius: '12px', textDecoration: 'none',
                 background: '#1a2744', color: 'white', fontSize: '14px', fontWeight: '700',

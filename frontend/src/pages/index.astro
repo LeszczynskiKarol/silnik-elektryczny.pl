@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { fetchAllMotorsRaw } from '../lib/api.ts';
+import ProductImage from '../components/ProductImage.astro';
 
 const rawProducts = await fetchAllMotorsRaw();
 
@@ -181,7 +182,7 @@ function cap(s: string): string {
     <h2 class="section-title">Kategorie</h2>
     <div class="cat-grid">
       {CATEGORIES.map(c => (
-        <a href={`/kategoria/${c.slug}`} class="cat-tile">
+        <a href={`/kategoria/${c.slug}/`} class="cat-tile">
           <span class="cat-icon">{c.icon}</span>
           <span class="cat-label">{c.label}</span>
           <span class="cat-desc">{c.desc}</span>
@@ -198,7 +199,7 @@ function cap(s: string): string {
       <h2 class="section-title">Popularne moce</h2>
       <div class="pow-grid">
         {popularPowers.map(pw => (
-          <a href={`/moc/${pw.slug}`} class="pow-tile">
+          <a href={`/moc/${pw.slug}/`} class="pow-tile">
             <span class="pow-val">{pw.label}</span>
             <span class="pow-unit">kW</span>
             <span class="pow-cnt">{pw.cnt} szt.</span>
@@ -247,8 +248,8 @@ function cap(s: string): string {
           const pw = p.power?.value;
           const pSpecs = [pw && `${pw} kW`, p.rpm?.value && `${p.rpm.value} obr/min`, p.weight && `${p.weight} kg`].filter(Boolean).join(' · ');
           return (
-            <a href={`/silnik/${pSlug}`} class="card">
-              <div class="card-img"><img src={pImg} alt={pName} loading="lazy" /></div>
+            <a href={`/silnik/${pSlug}/`} class="card">
+              <div class="card-img"><ProductImage src={pImg} alt={pName} sizes="(max-width: 600px) 50vw, 190px" /></div>
               <div class="card-body">
                 {p.manufacturer && <div class="card-mfr">{p.manufacturer}</div>}
                 <div class="card-name">{pName}</div>
@@ -300,10 +301,39 @@ function cap(s: string): string {
   </section>
 
   <script type="application/ld+json" set:html={JSON.stringify({
-    "@context":"https://schema.org","@type":"Store",
-    "name":"silnik-elektryczny.pl","url":"https://www.silnik-elektryczny.pl",
+    "@context":"https://schema.org",
+    "@type":"Store",
+    "name":"silnik-elektryczny.pl",
+    "alternateName":"Stojan S.C.",
+    "url":"https://www.silnik-elektryczny.pl/",
+    "logo":"https://www.silnik-elektryczny.pl/android-chrome-512x512.png",
+    "image":"https://www.silnik-elektryczny.pl/og-default.png",
     "description":`Sklep z używanymi silnikami elektrycznymi. ${total} produktów w ofercie.`,
-    "offers":{"@type":"AggregateOffer","offerCount":total}
+    "telephone":"+48500385112",
+    "email":"stojan@silniki-elektryczne.com.pl",
+    "priceRange":"100 – 15000 PLN",
+    "address":{
+      "@type":"PostalAddress",
+      "streetAddress":"Wojewódzka 2",
+      "postalCode":"87-152",
+      "addressLocality":"Pigża",
+      "addressCountry":"PL"
+    },
+    "sameAs":["https://www.silniki-elektryczne.com.pl/"],
+    "offers":{"@type":"AggregateOffer","offerCount":total,"priceCurrency":"PLN"}
+  })} />
+
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context":"https://schema.org",
+    "@type":"WebSite",
+    "name":"silnik-elektryczny.pl",
+    "url":"https://www.silnik-elektryczny.pl/",
+    "inLanguage":"pl-PL",
+    "publisher":{
+      "@type":"Organization",
+      "name":"Stojan S.C.",
+      "logo":{"@type":"ImageObject","url":"https://www.silnik-elektryczny.pl/android-chrome-512x512.png"}
+    }
   })} />
 
   <script define:vars={{ products, CATEGORIES, popularPowers }}>
@@ -316,6 +346,16 @@ function cap(s: string): string {
     if (u.get('s')) page = parseInt(u.get('s')) || 1;
 
     const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    const escAttr = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    function imgHtml(src, alt, sizes) {
+      if (!src) return '';
+      const m = src.match(/^(.+\/products\/[^?#]+?)(\.(?:jpe?g|png|webp))(\?.*)?$/i);
+      const altAttr = escAttr(alt || '');
+      if (!m) return `<img src="${escAttr(src)}" alt="${altAttr}" loading="lazy" decoding="async">`;
+      const base = m[1], q = m[3] || '';
+      const fullWebp = /\.webp(\?|$)/i.test(src) ? escAttr(src) : `${base}.webp${q}`;
+      return `<picture><source type="image/webp" srcset="${base}-600w.webp${q} 600w, ${base}-1200w.webp${q} 1200w, ${fullWebp} 2000w" sizes="${sizes||'190px'}"><img src="${escAttr(src)}" alt="${altAttr}" loading="lazy" decoding="async"></picture>`;
+    }
 
     function normPow(val) {
       if (val == null) return null;
@@ -387,8 +427,8 @@ function cap(s: string): string {
               p.weight && `${p.weight} kg`
             ].filter(Boolean).join(' · ');
             const name = cap(p.name);
-            return `<a href="/silnik/${slug}" class="card">
-              <div class="card-img"><img src="${img}" alt="${name}" loading="lazy"></div>
+            return `<a href="/silnik/${slug}/" class="card">
+              <div class="card-img">${imgHtml(img, name, '(max-width: 600px) 50vw, 190px')}</div>
               <div class="card-body">
                 ${p.manufacturer?`<div class="card-mfr">${p.manufacturer}</div>`:''}
                 <div class="card-name">${name}</div>

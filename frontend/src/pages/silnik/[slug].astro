@@ -1,7 +1,9 @@
 ---
 import { getAllMotorSlugs, getMotor, formatPrice, getImageUrl, LAMBDA, fetchAllMotorsRaw } from '../../lib/api.ts';
+import { webpUrl, hasWebpVariants } from '../../lib/img';
 import Layout from '../../layouts/Layout.astro';
 import AddToCart from '../../components/AddToCart';
+import ProductImage from '../../components/ProductImage.astro';
 
 export async function getStaticPaths() {
   const slugs = await getAllMotorSlugs();
@@ -10,13 +12,21 @@ export async function getStaticPaths() {
 
 const { slug } = Astro.params;
 const data = await getMotor(slug);
-if (!data?.success) return Astro.redirect('/404');
+if (!data?.success) return Astro.rewrite('/404');
 
 const p = data.data.product;
 const productName = p.name ? p.name.charAt(0).toUpperCase() + p.name.slice(1) : '';
 const price = Number(p.marketplaces?.ownStore?.price ?? p.price);
 const imgs = [p.mainImage, ...(p.galleryImages || [])].filter(Boolean);
 const productWeight = Number(p.weight) || 0;
+
+function normPow(v: any): string | null {
+  if (v == null) return null;
+  const s = String(v).replace(/kW/gi, '').replace(',', '.').trim();
+  const n = parseFloat(s);
+  return isNaN(n) || n <= 0 ? null : n.toString().replace('.', ',');
+}
+const powerNorm = normPow(p.power?.value);
 
 // ── Kategoria główna (do breadcrumba i internal linking) ──
 const CAT_META: Record<string, { label: string; shopUrl: string }> = {
@@ -73,7 +83,7 @@ const specs = [
 ].filter(Boolean);
 
 // ── Schema.org JSON-LD ──
-const canonical = `https://www.silnik-elektryczny.pl/silnik/${slug}`;
+const canonical = `https://www.silnik-elektryczny.pl/silnik/${slug}/`;
 
 const schemaProduct: Record<string, any> = {
   "@context": "https://schema.org",
@@ -114,14 +124,14 @@ if (primaryCatSlug) {
   breadcrumbItems.push({
     "@type": "ListItem", "position": 2,
     "name": primaryCatLabel,
-    "item": `https://www.silnik-elektryczny.pl/kategoria/${primaryCatSlug}`
+    "item": `https://www.silnik-elektryczny.pl/kategoria/${primaryCatSlug}/`
   });
 }
 if (productPower && powerSlug) {
   breadcrumbItems.push({
     "@type": "ListItem", "position": breadcrumbItems.length + 1,
     "name": `${powerLabel} kW`,
-    "item": `https://www.silnik-elektryczny.pl/moc/${powerSlug}`
+    "item": `https://www.silnik-elektryczny.pl/moc/${powerSlug}/`
   });
 }
 breadcrumbItems.push({
@@ -138,9 +148,27 @@ const schemaBreadcrumb = {
 
 <Layout
   title={`Używany ${p.name} – silnik-elektryczny.pl`}
-  description={`Używany ${p.name} – ${p.power?.value} kW, ${p.rpm?.value} obr/min. Cena: ${price} PLN brutto.`}
+  description={`Używany ${p.name} – ${powerNorm ?? '?'} kW, ${p.rpm?.value} obr/min. Cena: ${price} PLN brutto.`}
   canonical={canonical}
+  ogImage={imgs[0]}
+  ogType="product"
 >
+
+  <!-- LCP preload (main product image, WebP variant when available) -->
+  {imgs[0] && hasWebpVariants(imgs[0]) && (
+    <link
+      rel="preload"
+      as="image"
+      type="image/webp"
+      imagesrcset={`${webpUrl(imgs[0], '-600w')} 600w, ${webpUrl(imgs[0], '-1200w')} 1200w, ${webpUrl(imgs[0])} 2000w`}
+      imagesizes="(max-width: 900px) 100vw, 440px"
+      fetchpriority="high"
+      slot="head"
+    />
+  )}
+  {imgs[0] && !hasWebpVariants(imgs[0]) && (
+    <link rel="preload" as="image" href={imgs[0]} fetchpriority="high" slot="head" />
+  )}
 
   <!-- Schema.org Product + BreadcrumbList -->
   <script type="application/ld+json" set:html={JSON.stringify(schemaProduct)} slot="head" />
@@ -230,7 +258,7 @@ const schemaBreadcrumb = {
     <span class="breadcrumb-sep">/</span>
     {primaryCatSlug ? (
       <>
-        <a href={`/kategoria/${primaryCatSlug}`}>{primaryCatLabel}</a>
+        <a href={`/kategoria/${primaryCatSlug}/`}>{primaryCatLabel}</a>
         <span class="breadcrumb-sep">/</span>
       </>
     ) : (
@@ -241,7 +269,7 @@ const schemaBreadcrumb = {
     )}
     {productPower && powerSlug && (
       <>
-        <a href={`/moc/${powerSlug}`}>{powerLabel} kW</a>
+        <a href={`/moc/${powerSlug}/`}>{powerLabel} kW</a>
         <span class="breadcrumb-sep">/</span>
       </>
     )}
@@ -251,13 +279,20 @@ const schemaBreadcrumb = {
   <div class="product-grid">
     <div class="gallery" id="gallery">
       <div class="gallery-main">
-        <img id="main-img" src={imgs[0] || getImageUrl(p)} alt={productName} />
+        <ProductImage
+          id="main-img"
+          src={imgs[0] || getImageUrl(p)}
+          alt={productName}
+          loading="eager"
+          fetchpriority="high"
+          sizes="(max-width: 900px) 100vw, 440px"
+        />
       </div>
       {imgs.length > 1 && (
         <div class="gallery-thumbs">
           {imgs.map((img, i) => (
-            <div class={`gallery-thumb ${i === 0 ? 'active' : ''}`} data-src={img} data-idx={i}>
-              <img src={img} alt="" loading="lazy" />
+            <div class={`gallery-thumb ${i === 0 ? 'active' : ''}`} data-src={img} data-src-webp={webpUrl(img)} data-idx={i}>
+              <ProductImage src={img} alt="" sizes="72px" />
             </div>
           ))}
         </div>
@@ -276,10 +311,10 @@ const schemaBreadcrumb = {
       <!-- Linki wewnętrzne do kategorii i mocy -->
       <div class="product-links">
         {primaryCatSlug && (
-          <a href={`/kategoria/${primaryCatSlug}`} class="product-link">{primaryCatLabel}</a>
+          <a href={`/kategoria/${primaryCatSlug}/`} class="product-link">{primaryCatLabel}</a>
         )}
         {productPower && powerSlug && (
-          <a href={`/moc/${powerSlug}`} class="product-link">{powerLabel} kW</a>
+          <a href={`/moc/${powerSlug}/`} class="product-link">{powerLabel} kW</a>
         )}
       </div>
 
@@ -345,8 +380,8 @@ const schemaBreadcrumb = {
           const xPw = x.power?.value;
           const xSpecs = [xPw && `${xPw} kW`, x.rpm?.value && `${x.rpm.value} obr/min`, x.weight && `${x.weight} kg`].filter(Boolean).join(' · ');
           return (
-            <a href={`/silnik/${xSlug}`} class="sim-card">
-              <div class="sim-img"><img src={xImg} alt={xName} loading="lazy" /></div>
+            <a href={`/silnik/${xSlug}/`} class="sim-card">
+              <div class="sim-img"><ProductImage src={xImg} alt={xName} sizes="180px" /></div>
               <div class="sim-body">
                 {x.manufacturer && <div class="sim-mfr">{x.manufacturer}</div>}
                 <div class="sim-name">{xName}</div>
@@ -365,10 +400,21 @@ const schemaBreadcrumb = {
 
   <script define:vars={{ productWeight }}>
     const mainImg = document.getElementById('main-img');
+    const mainSource = mainImg && mainImg.parentElement && mainImg.parentElement.querySelector('source');
     document.querySelectorAll('.gallery-thumb').forEach(thumb => {
       thumb.addEventListener('click', () => {
         const src = thumb.dataset.src;
+        const webp = thumb.dataset.srcWebp;
         if (src && mainImg) mainImg.src = src;
+        if (webp && mainSource) {
+          const m = webp.match(/^(.+)\.webp(\?.*)?$/i);
+          if (m) {
+            const q = m[2] || '';
+            mainSource.srcset = `${m[1]}-600w.webp${q} 600w, ${m[1]}-1200w.webp${q} 1200w, ${webp} 2000w`;
+          } else {
+            mainSource.srcset = webp;
+          }
+        }
         document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
         thumb.classList.add('active');
       });

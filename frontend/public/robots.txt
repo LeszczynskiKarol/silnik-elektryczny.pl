@@ -1,4 +1,4 @@
-roUser-agent: *
+User-agent: *
 Allow: /
 
 Disallow: /checkout

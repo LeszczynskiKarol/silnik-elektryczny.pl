@@ -1,21 +1,13 @@
-/**
- * rebuild-trigger/index.mjs
- * 
- * Lambda wywoływana przez:
- * - Webhook z backendu Stojan (POST /rebuild)
- * - EventBridge cron (co 30 min)
- * 
- * Debounce: jeśli build już trwa, nie startuje nowego.
- */
+import {
+  CodeBuildClient,
+  StartBuildCommand,
+  BatchGetBuildsCommand,
+  ListBuildsForProjectCommand,
+} from "@aws-sdk/client-codebuild";
 
-import { CodeBuildClient, StartBuildCommand, BatchGetBuildsCommand, ListBuildsForProjectCommand } from "@aws-sdk/client-codebuild";
-
-const PROJECT_NAME = "silnik-elektryczny-pl";
+const PROJECTS = ["silnik-elektryczny-pl", "silniki-trojfazowe-pl"];
 const REGION = "eu-north-1";
-
-// Opcjonalny secret do zabezpieczenia webhooka
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
-
 const cb = new CodeBuildClient({ region: REGION });
 
 const CORS = {
@@ -28,11 +20,12 @@ export const handler = async (event) => {
   const method = event.requestContext?.http?.method || "GET";
   if (method === "OPTIONS") return { statusCode: 200, headers: CORS, body: "" };
 
-  // Weryfikacja secret (jeśli ustawiony)
-  if (WEBHOOK_SECRET) {
+  const isEventBridge = event.source === "aws.events";
+  if (WEBHOOK_SECRET && !isEventBridge) {
     const headerSecret =
       event.headers?.["x-webhook-secret"] ||
-      event.headers?.["X-Webhook-Secret"] || "";
+      event.headers?.["X-Webhook-Secret"] ||
+      "";
     if (headerSecret !== WEBHOOK_SECRET) {
       return {
         statusCode: 403,
@@ -42,73 +35,63 @@ export const handler = async (event) => {
     }
   }
 
-  try {
-    // Sprawdź czy build już trwa (debounce)
-    const listRes = await cb.send(
-      new ListBuildsForProjectCommand({
-        projectName: PROJECT_NAME,
-        sortOrder: "DESCENDING",
-      })
-    );
+  const source = event.source === "aws.events" ? "cron" : "webhook";
+  let reason = `Triggered by ${source}`;
+  if (method === "POST" && event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      if (body.reason) reason = body.reason;
+      if (body.productSlug) reason += ` (product: ${body.productSlug})`;
+    } catch {}
+  }
 
-    if (listRes.ids?.length > 0) {
-      const latestId = listRes.ids[0];
-      const buildRes = await cb.send(
-        new BatchGetBuildsCommand({ ids: [latestId] })
+  const results = [];
+
+  for (const project of PROJECTS) {
+    try {
+      const listRes = await cb.send(
+        new ListBuildsForProjectCommand({
+          projectName: project,
+          sortOrder: "DESCENDING",
+        }),
       );
-      const latest = buildRes.builds?.[0];
-      if (latest && ["IN_PROGRESS", "QUEUED"].includes(latest.buildStatus)) {
-        return {
-          statusCode: 200,
-          headers: CORS,
-          body: JSON.stringify({
-            success: true,
-            message: "Build already in progress",
-            buildId: latestId,
-            status: latest.buildStatus,
-          }),
-        };
+      if (listRes.ids?.length > 0) {
+        const buildRes = await cb.send(
+          new BatchGetBuildsCommand({ ids: [listRes.ids[0]] }),
+        );
+        const latest = buildRes.builds?.[0];
+        if (latest && ["IN_PROGRESS", "QUEUED"].includes(latest.buildStatus)) {
+          results.push({
+            project,
+            status: "skipped",
+            reason: "build already " + latest.buildStatus,
+          });
+          continue;
+        }
       }
-    }
 
-    // Startuj nowy build
-    const source = event.source === "aws.events" ? "cron" : "webhook";
-    let reason = `Triggered by ${source}`;
-
-    // Jeśli webhook — loguj co się zmieniło
-    if (method === "POST" && event.body) {
-      try {
-        const body = JSON.parse(event.body);
-        if (body.reason) reason = body.reason;
-        if (body.productSlug) reason += ` (product: ${body.productSlug})`;
-      } catch {}
-    }
-
-    const startRes = await cb.send(
-      new StartBuildCommand({
-        projectName: PROJECT_NAME,
-        environmentVariablesOverride: [
-          { name: "BUILD_REASON", value: reason, type: "PLAINTEXT" },
-        ],
-      })
-    );
-
-    return {
-      statusCode: 200,
-      headers: CORS,
-      body: JSON.stringify({
-        success: true,
-        message: "Build started",
+      const startRes = await cb.send(
+        new StartBuildCommand({
+          projectName: project,
+          environmentVariablesOverride: [
+            { name: "BUILD_REASON", value: reason, type: "PLAINTEXT" },
+          ],
+        }),
+      );
+      results.push({
+        project,
+        status: "started",
         buildId: startRes.build?.id,
         reason,
-      }),
-    };
-  } catch (err) {
-    console.error("Error:", err);
-    return {
-      statusCode: 500,
-      headers: CORS,
-      body: JSON.stringify({ success: false, error: err.message }),
-    };
+      });
+    } catch (err) {
+      results.push({ project, status: "error", error: err.message });
+    }
   }
+
+  return {
+    statusCode: 200,
+    headers: CORS,
+    body: JSON.stringify({ success: true, results }),
+  };
 };

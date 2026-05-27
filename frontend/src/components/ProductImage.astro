@@ -1,0 +1,60 @@
+---
+import { webpUrl, hasWebpVariants } from '../lib/img';
+
+interface Props {
+  src: string;
+  alt: string;
+  sizes?: string;
+  loading?: 'lazy' | 'eager';
+  fetchpriority?: 'high' | 'low' | 'auto';
+  class?: string;
+  id?: string;
+  width?: number;
+  height?: number;
+}
+
+const {
+  src,
+  alt,
+  sizes = '(max-width: 600px) 50vw, 220px',
+  loading = 'lazy',
+  fetchpriority,
+  class: className,
+  id,
+  width,
+  height,
+} = Astro.props;
+
+const hasVariants = hasWebpVariants(src);
+const srcset = hasVariants
+  ? `${webpUrl(src, '-600w')} 600w, ${webpUrl(src, '-1200w')} 1200w, ${webpUrl(src)} 2000w`
+  : '';
+---
+{hasVariants ? (
+  <picture>
+    <source type="image/webp" srcset={srcset} sizes={sizes} />
+    <img
+      src={src}
+      alt={alt}
+      loading={loading}
+      fetchpriority={fetchpriority}
+      class={className}
+      id={id}
+      width={width}
+      height={height}
+      decoding="async"
+    />
+  </picture>
+) : (
+  <img
+    src={src}
+    alt={alt}
+    loading={loading}
+    fetchpriority={fetchpriority}
+    class={className}
+    id={id}
+    width={width}
+    height={height}
+    decoding="async"
+  />
+)}

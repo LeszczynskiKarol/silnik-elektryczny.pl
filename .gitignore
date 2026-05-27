@@ -25,3 +25,18 @@ Thumbs.db
 
 # temp
 .tmp/
+
+# CodeBuild / Lambda webhook artifacts (root-level scratch)
+build-ids-*.txt
+build-ids.json
+builds-detail-*.json
+payload.json
+payload-test.json
+lambda-output.json
+output.json
+response.json
+*.zip
+
+# audit / infra scratch
+.cf-*.json
+.cf-*.js

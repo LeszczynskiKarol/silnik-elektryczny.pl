@@ -857,14 +857,14 @@ export function CheckoutForm() {
           >
             Klikając akceptujesz{" "}
             <a
-              href="/regulamin"
+              href="/regulamin/"
               style={{ color: "#555", textDecoration: "underline" }}
             >
               regulamin
             </a>{" "}
             i{" "}
             <a
-              href="/polityka-prywatnosci"
+              href="/polityka-prywatnosci/"
               style={{ color: "#555", textDecoration: "underline" }}
             >
               politykę prywatności

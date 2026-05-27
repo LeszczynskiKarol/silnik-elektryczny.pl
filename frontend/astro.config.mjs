@@ -5,6 +5,19 @@ import sitemap from "@astrojs/sitemap";
 
 export default defineConfig({
   output: "static",
-  integrations: [react(), tailwind(), sitemap()],
+  trailingSlash: "always",
+  build: { format: "directory" },
+  integrations: [
+    react(),
+    tailwind(),
+    sitemap({
+      filter: (page) =>
+        !page.includes("/checkout") && !page.includes("/zamowienie/"),
+      serialize(item) {
+        item.lastmod = new Date().toISOString();
+        return item;
+      },
+    }),
+  ],
   site: "https://www.silnik-elektryczny.pl",
 });
